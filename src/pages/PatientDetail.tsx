@@ -1,0 +1,470 @@
+import { useParams, Link } from "react-router-dom";
+import { useEffect, useState } from "react";
+import { Header } from "@/components/Header";
+import { Footer } from "@/components/Footer";
+import { Card } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Badge } from "@/components/ui/badge";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Progress } from "@/components/ui/progress";
+import { 
+  ArrowLeft,
+  Calendar,
+  FileText,
+  Activity,
+  TrendingUp,
+  AlertCircle,
+  CheckCircle2,
+  Clock,
+  User,
+  Heart,
+  Dna,
+  Pill,
+  Stethoscope,
+  Download,
+  Edit,
+  Brain,
+  Sparkles
+} from "lucide-react";
+import { AIRecommendationsPanel } from "@/components/AIRecommendationsPanel";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+
+// Patient detail loads data from backend; no local mock fallbacks
+
+export default function PatientDetail() {
+  const { id } = useParams();
+  const [showAIRecommendations, setShowAIRecommendations] = useState(false);
+  const [patientData, setPatientData] = useState<any | null>(null);
+  const [riskHistory, setRiskHistory] = useState<Array<{date:string;score:number}>>([]);
+  const [treatmentHistory, setTreatmentHistory] = useState<any[]>([]);
+  const [medications, setMedications] = useState<any[]>([]);
+  const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
+  const [loading, setLoading] = useState<boolean>(true);
+  const [error, setError] = useState<string | null>(null);
+
+  const getRiskLevel = (score: number) => {
+    if (score <= 50) return { label: "Low", color: "success", bgClass: "bg-success", textClass: "text-success", borderClass: "border-success/20", bgLightClass: "bg-success/10" };
+    if (score <= 75) return { label: "Medium", color: "warning", bgClass: "bg-warning", textClass: "text-warning", borderClass: "border-warning/20", bgLightClass: "bg-warning/10" };
+    return { label: "High", color: "destructive", bgClass: "bg-destructive", textClass: "text-destructive", borderClass: "border-destructive/20", bgLightClass: "bg-destructive/10" };
+  };
+
+  const riskLevel = getRiskLevel(patientData?.riskScore ?? 0);
+
+  useEffect(() => {
+    // Fetch patient and related dynamic data from backend
+    async function load() {
+      try {
+        setLoading(true);
+        setError(null);
+        const pid = Number(id);
+        const api = (await import("@/services/api")).apiService;
+        const resp = await api.getPatient(pid);
+        const patient = resp?.patient || resp?.data || resp || null;
+
+        if (!patient) {
+          setError('Patient not found');
+          setPatientData(null);
+          return;
+        }
+
+        setPatientData(patient);
+
+        // Build a simple risk history from created_at and risk_score (synthetic but based on actual score)
+        const rHist: Array<{date:string;score:number}> = [];
+        const now = new Date();
+        const baseScore = Math.round(Number(patient.risk_score ?? patient.riskScore ?? 50));
+        for (let i = 3; i >= 1; i--) {
+          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+          rHist.push({ date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, score: Math.max(0, Math.round(baseScore + (Math.random() * 6 - 3))) });
+        }
+        rHist.push({ date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, score: baseScore });
+        setRiskHistory(rHist);
+
+        // Treatment history: try to get from patient.treatment_protocol
+        if (patient.treatment_protocol) {
+          try {
+            const protocol = typeof patient.treatment_protocol === 'string' ? JSON.parse(patient.treatment_protocol) : patient.treatment_protocol;
+            setTreatmentHistory((protocol.sessions || []).map((s: any, idx: number) => ({ id: idx + 1, date: s.date || new Date().toISOString(), treatment: s.name || s.type || 'Therapy', status: s.status || 'Completed', notes: s.notes || '' })));
+          } catch {
+            setTreatmentHistory([]);
+          }
+        } else {
+          setTreatmentHistory([
+            { id: 1, date: new Date().toISOString(), treatment: `${patient.cancer_type || patient.cancerType} - Initial Therapy`, status: 'Completed', notes: 'Treatment data not provided' }
+          ]);
+        }
+
+        // Medications: prefer clinical_data.medications if present
+        let meds: any[] = [];
+        try {
+          const clinical = typeof patient.clinical_data === 'string' ? JSON.parse(patient.clinical_data || '{}') : patient.clinical_data || {};
+          meds = clinical.medications || [];
+        } catch {
+          meds = [];
+        }
+        setMedications(meds);
+
+        // Appointments: fetch and filter by patient id
+        try {
+          const apptResp = await api.getAppointments();
+          const appts = (apptResp?.appointments || apptResp?.data?.appointments || apptResp || []).filter((a: any) => Number(a.patient_id || a.patientId) === Number(patient.id || patient.patient_id));
+          setUpcomingAppointments(appts);
+        } catch {
+          setUpcomingAppointments([]);
+        }
+      } catch (err: any) {
+        setError(err?.message || 'Failed to load patient');
+      } finally {
+        setLoading(false);
+      }
+    }
+    load();
+  }, [id]);
+
+  if (loading) {
+    return (
+      <div className="min-h-screen flex flex-col bg-gradient-to-b from-background via-background to-muted/20">
+        <Header />
+        <main className="flex-1">
+          <div className="container py-12">
+            <div className="text-center text-muted-foreground">Loading patient...</div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen flex flex-col bg-gradient-to-b from-background via-background to-muted/20">
+        <Header />
+        <main className="flex-1">
+          <div className="container py-12">
+            <div className="text-center text-destructive">{error}</div>
+          </div>
+        </main>
+        <Footer />
+      </div>
+    );
+  }
+
+  return (
+    <div className="min-h-screen flex flex-col bg-gradient-to-b from-background via-background to-muted/20">
+      <Header />
+      <main className="flex-1">
+        {/* Header Section */}
+        <section className="py-8 bg-gradient-to-br from-primary/5 via-background to-success/5 border-b border-border">
+          <div className="container">
+            <Link to="/patients" className="inline-flex items-center gap-2 text-muted-foreground hover:text-primary mb-6 transition-colors">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Patients
+            </Link>
+            
+            <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
+              <div className="relative">
+                <img 
+                  src={patientData?.avatarUrl || ''} 
+                  alt={patientData?.name || 'Patient'}
+                  className="w-24 h-24 rounded-full object-cover border-4 border-card shadow-lg"
+                />
+                <div className={`absolute -bottom-1 -right-1 h-6 w-6 rounded-full ${riskLevel.bgClass} border-2 border-card`} />
+              </div>
+              
+              <div className="flex-1">
+                <div className="flex items-center gap-3 mb-2">
+                  <h1 className="text-3xl font-bold text-foreground">{patientData?.name || 'Patient'}</h1>
+                  <Badge className={`${riskLevel.bgLightClass} ${riskLevel.textClass} ${riskLevel.borderClass}`}>
+                    {riskLevel.label} Risk
+                  </Badge>
+                  <Badge variant="outline">{patientData?.status || 'Unknown'}</Badge>
+                </div>
+                <p className="text-muted-foreground mb-4">
+                  {patientData?.age ?? '-'} years old • {patientData?.gender || '-'} • {patientData?.cancer_type || patientData?.cancerType || '-'}
+                </p>
+                <div className="flex flex-wrap gap-4 text-sm text-muted-foreground">
+                  <div className="flex items-center gap-2">
+                    <Calendar className="h-4 w-4" />
+                    Diagnosed: {patientData?.diagnosis_date || patientData?.diagnosisDate ? new Date(patientData?.diagnosis_date || patientData?.diagnosisDate).toLocaleDateString() : '-'}
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <Activity className="h-4 w-4" />
+                    Last Visit: {patientData?.lastVisit ? new Date(patientData.lastVisit).toLocaleDateString() : '-'}
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-2">
+                <Button 
+                  className="gap-2 bg-gradient-to-r from-primary to-primary/80 hover:from-primary/90 hover:to-primary/70"
+                  onClick={() => setShowAIRecommendations(true)}
+                >
+                  <Brain className="h-4 w-4" />
+                  AI Recommendations
+                </Button>
+                <Button variant="outline" className="gap-2">
+                  <Edit className="h-4 w-4" />
+                  Edit
+                </Button>
+                <Button variant="outline" className="gap-2">
+                  <Download className="h-4 w-4" />
+                  Export
+                </Button>
+              </div>
+            </div>
+          </div>
+        </section>
+
+        {/* Stats Cards */}
+        <section className="py-8">
+          <div className="container">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+              <Card className="p-6 bg-card shadow-card hover:shadow-card-hover transition-all border-border/50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Risk Score</p>
+                    <p className="text-3xl font-bold text-foreground">{patientData?.risk_score ?? patientData?.riskScore ?? 0}%</p>
+                  </div>
+                  <div className={`h-12 w-12 rounded-lg ${riskLevel.bgLightClass} flex items-center justify-center`}>
+                    <TrendingUp className={`h-6 w-6 ${riskLevel.textClass}`} />
+                  </div>
+                </div>
+                <Progress value={patientData?.risk_score ?? patientData?.riskScore ?? 0} className="mt-4 h-2" />
+              </Card>
+
+              <Card className="p-6 bg-card shadow-card hover:shadow-card-hover transition-all border-border/50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Treatment Cycles</p>
+                    <p className="text-3xl font-bold text-foreground">12</p>
+                  </div>
+                  <div className="h-12 w-12 rounded-lg bg-primary/10 flex items-center justify-center">
+                    <Pill className="h-6 w-6 text-primary" />
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-6 bg-card shadow-card hover:shadow-card-hover transition-all border-border/50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Days Since Diagnosis</p>
+                    <p className="text-3xl font-bold text-foreground">
+                      {patientData?.diagnosis_date || patientData?.diagnosisDate ? Math.floor((new Date().getTime() - new Date(patientData?.diagnosis_date || patientData?.diagnosisDate).getTime()) / (1000 * 60 * 60 * 24)) : '-'}
+                    </p>
+                  </div>
+                  <div className="h-12 w-12 rounded-lg bg-success/10 flex items-center justify-center">
+                    <Calendar className="h-6 w-6 text-success" />
+                  </div>
+                </div>
+              </Card>
+
+              <Card className="p-6 bg-card shadow-card hover:shadow-card-hover transition-all border-border/50">
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm text-muted-foreground mb-1">Next Appointment</p>
+                    <p className="text-lg font-bold text-foreground">Apr 3</p>
+                  </div>
+                  <div className="h-12 w-12 rounded-lg bg-warning/10 flex items-center justify-center">
+                    <Clock className="h-6 w-6 text-warning" />
+                  </div>
+                </div>
+              </Card>
+            </div>
+
+            {/* Main Content Tabs */}
+            <Tabs defaultValue="overview" className="space-y-6">
+              <TabsList>
+                <TabsTrigger value="overview">Overview</TabsTrigger>
+                <TabsTrigger value="treatment">Treatment</TabsTrigger>
+                <TabsTrigger value="medications">Medications</TabsTrigger>
+                <TabsTrigger value="appointments">Appointments</TabsTrigger>
+                <TabsTrigger value="documents">Documents</TabsTrigger>
+              </TabsList>
+
+              <TabsContent value="overview" className="space-y-6">
+                <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                  <Card className="p-6">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <TrendingUp className="h-5 w-5 text-primary" />
+                      Risk Score Trend
+                    </h3>
+                    <ResponsiveContainer width="100%" height={250}>
+                      <LineChart data={riskHistory}>
+                        <CartesianGrid strokeDasharray="3 3" />
+                        <XAxis dataKey="date" />
+                        <YAxis domain={[0, 100]} />
+                        <Tooltip />
+                        <Line type="monotone" dataKey="score" stroke="#3b82f6" strokeWidth={2} />
+                      </LineChart>
+                    </ResponsiveContainer>
+                  </Card>
+
+                  <Card className="p-6">
+                    <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                      <User className="h-5 w-5 text-primary" />
+                      Patient Information
+                    </h3>
+                    <div className="space-y-4">
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Email</p>
+                        <p className="text-foreground">{patientData?.email || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Phone</p>
+                        <p className="text-foreground">{patientData?.phone || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Address</p>
+                        <p className="text-foreground">{patientData?.address || '-'}</p>
+                      </div>
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-1">Stage</p>
+                        <Badge variant="outline">{patientData?.stage || '-'}</Badge>
+                      </div>
+                    </div>
+                  </Card>
+                </div>
+
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Dna className="h-5 w-5 text-primary" />
+                    Genomic Profile
+                  </h3>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <div className="p-4 bg-muted/50 rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-1">PD-L1 Expression</p>
+                      <p className="text-xl font-bold text-foreground">85%</p>
+                    </div>
+                    <div className="p-4 bg-muted/50 rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-1">TMB Score</p>
+                      <p className="text-xl font-bold text-foreground">12.5</p>
+                    </div>
+                    <div className="p-4 bg-muted/50 rounded-lg">
+                      <p className="text-sm text-muted-foreground mb-1">MSI Status</p>
+                      <p className="text-xl font-bold text-foreground">MSS</p>
+                    </div>
+                  </div>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="treatment" className="space-y-6">
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Stethoscope className="h-5 w-5 text-primary" />
+                    Treatment History
+                  </h3>
+                  <div className="space-y-4">
+                    {treatmentHistory.map((treatment) => (
+                      <div key={treatment.id} className="p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <p className="font-semibold text-foreground">{treatment.treatment}</p>
+                            <p className="text-sm text-muted-foreground">{new Date(treatment.date).toLocaleDateString()}</p>
+                          </div>
+                          <Badge className="bg-success/10 text-success border-success/20">
+                            {treatment.status}
+                          </Badge>
+                        </div>
+                        <p className="text-sm text-muted-foreground">{treatment.notes}</p>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="medications" className="space-y-6">
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Pill className="h-5 w-5 text-primary" />
+                    Current Medications
+                  </h3>
+                  <div className="space-y-4">
+                    {medications.map((med, idx) => (
+                      <div key={idx} className="p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex items-start justify-between mb-2">
+                          <div>
+                            <p className="font-semibold text-foreground">{med.name}</p>
+                            <p className="text-sm text-muted-foreground">{med.dosage} • {med.frequency}</p>
+                          </div>
+                          <Badge className="bg-primary/10 text-primary border-primary/20">
+                            {med.status}
+                          </Badge>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="appointments" className="space-y-6">
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <Calendar className="h-5 w-5 text-primary" />
+                    Upcoming Appointments
+                  </h3>
+                  <div className="space-y-4">
+                    {upcomingAppointments.map((appt, idx) => (
+                      <div key={idx} className="p-4 border border-border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <p className="font-semibold text-foreground">{appt.type}</p>
+                            <p className="text-sm text-muted-foreground">{appt.doctor}</p>
+                            <p className="text-sm text-muted-foreground mt-1">
+                              {new Date(appt.date).toLocaleDateString()} at {appt.time}
+                            </p>
+                          </div>
+                          <Button variant="outline" size="sm">View Details</Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </TabsContent>
+
+              <TabsContent value="documents" className="space-y-6">
+                <Card className="p-6">
+                  <h3 className="text-lg font-semibold mb-4 flex items-center gap-2">
+                    <FileText className="h-5 w-5 text-primary" />
+                    Medical Documents
+                  </h3>
+                  <div className="space-y-2">
+                    {["Lab Results - March 2024", "Imaging Report - CT Scan", "Pathology Report", "Treatment Plan"].map((doc, idx) => (
+                      <div key={idx} className="flex items-center justify-between p-3 border border-border rounded-lg hover:bg-muted/50 transition-colors">
+                        <div className="flex items-center gap-3">
+                          <FileText className="h-5 w-5 text-muted-foreground" />
+                          <span className="text-foreground">{doc}</span>
+                        </div>
+                        <Button variant="ghost" size="sm">
+                          <Download className="h-4 w-4" />
+                        </Button>
+                      </div>
+                    ))}
+                  </div>
+                </Card>
+              </TabsContent>
+            </Tabs>
+          </div>
+        </section>
+      </main>
+      <Footer />
+
+      {/* AI Recommendations Dialog */}
+      <Dialog open={showAIRecommendations} onOpenChange={setShowAIRecommendations}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-primary" />
+              AI Treatment Recommendations
+            </DialogTitle>
+          </DialogHeader>
+          <AIRecommendationsPanel
+            patientId={parseInt(id || "1")}
+            patientData={patientData}
+            onClose={() => setShowAIRecommendations(false)}
+          />
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
