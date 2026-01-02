@@ -80,13 +80,41 @@ export default function Patients() {
   }, [patientsData]);
 
   const riskTrendData = useMemo(() => {
-    // Simple synthetic trend based on average risk over time — create three months
-    return [
-      { month: 'Jan', value: stats.avgRiskScore - 2 },
-      { month: 'Feb', value: stats.avgRiskScore },
-      { month: 'Mar', value: stats.avgRiskScore + 2 },
-    ];
-  }, [stats]);
+    // Calculate actual trend from patient data grouped by month
+    const monthlyData: Record<string, { total: number; sum: number; month: string }> = {};
+    
+    patientsData.forEach((p) => {
+      const createdDate = p.raw?.created_at || p.raw?.diagnosis_date;
+      if (!createdDate) return;
+      
+      const date = new Date(createdDate);
+      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+      const monthName = date.toLocaleDateString('en-US', { month: 'short' });
+      
+      if (!monthlyData[monthKey]) {
+        monthlyData[monthKey] = { total: 0, sum: 0, month: monthName };
+      }
+      monthlyData[monthKey].total += 1;
+      monthlyData[monthKey].sum += p.riskScore || 0;
+    });
+    
+    // Convert to array and calculate averages
+    const trend = Object.keys(monthlyData)
+      .sort()
+      .slice(-6) // Last 6 months
+      .map((key) => {
+        const data = monthlyData[key];
+        return {
+          month: data.month || key.split('-')[1],
+          value: data.total > 0 ? Math.round(data.sum / data.total) : stats.avgRiskScore,
+        };
+      });
+    
+    // If no data, show current average
+    return trend.length > 0 
+      ? trend 
+      : [{ month: new Date().toLocaleDateString('en-US', { month: 'short' }), value: stats.avgRiskScore }];
+  }, [patientsData, stats]);
 
   // Fetch patients once on mount and when manual refresh triggered
   const fetchPatients = async () => {

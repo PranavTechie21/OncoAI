@@ -27,6 +27,7 @@ import {
   Sparkles
 } from "lucide-react";
 import { AIRecommendationsPanel } from "@/components/AIRecommendationsPanel";
+import { OutcomeTrackingTab } from "@/components/OutcomeTrackingTab";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
 
@@ -70,15 +71,38 @@ export default function PatientDetail() {
 
         setPatientData(patient);
 
-        // Build a simple risk history from created_at and risk_score (synthetic but based on actual score)
+        // Build risk history from actual patient data (created_at, updated_at, and current risk_score)
         const rHist: Array<{date:string;score:number}> = [];
-        const now = new Date();
         const baseScore = Math.round(Number(patient.risk_score ?? patient.riskScore ?? 50));
-        for (let i = 3; i >= 1; i--) {
-          const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
-          rHist.push({ date: `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}`, score: Math.max(0, Math.round(baseScore + (Math.random() * 6 - 3))) });
+        const createdDate = patient.created_at ? new Date(patient.created_at) : null;
+        const updatedDate = patient.updated_at ? new Date(patient.updated_at) : null;
+        
+        // If patient has creation date, use it as first data point
+        if (createdDate) {
+          const createdMonth = `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}`;
+          rHist.push({ date: createdMonth, score: baseScore });
         }
-        rHist.push({ date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, score: baseScore });
+        
+        // If updated date is different from created date, add it
+        if (updatedDate && createdDate && updatedDate.getTime() !== createdDate.getTime()) {
+          const updatedMonth = `${updatedDate.getFullYear()}-${String(updatedDate.getMonth() + 1).padStart(2, '0')}`;
+          // Only add if it's a different month
+          if (updatedMonth !== (createdDate ? `${createdDate.getFullYear()}-${String(createdDate.getMonth() + 1).padStart(2, '0')}` : '')) {
+            rHist.push({ date: updatedMonth, score: baseScore });
+          }
+        }
+        
+        // If no history, just show current month with current score
+        if (rHist.length === 0) {
+          const now = new Date();
+          rHist.push({ 
+            date: `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`, 
+            score: baseScore 
+          });
+        }
+        
+        // Sort by date
+        rHist.sort((a, b) => a.date.localeCompare(b.date));
         setRiskHistory(rHist);
 
         // Treatment history: try to get from patient.treatment_protocol
@@ -277,6 +301,7 @@ export default function PatientDetail() {
               <TabsList>
                 <TabsTrigger value="overview">Overview</TabsTrigger>
                 <TabsTrigger value="treatment">Treatment</TabsTrigger>
+                <TabsTrigger value="outcomes">Outcomes</TabsTrigger>
                 <TabsTrigger value="medications">Medications</TabsTrigger>
                 <TabsTrigger value="appointments">Appointments</TabsTrigger>
                 <TabsTrigger value="documents">Documents</TabsTrigger>
@@ -371,6 +396,10 @@ export default function PatientDetail() {
                     ))}
                   </div>
                 </Card>
+              </TabsContent>
+
+              <TabsContent value="outcomes" className="space-y-6">
+                <OutcomeTrackingTab patientId={parseInt(id || "1")} patientData={patientData} />
               </TabsContent>
 
               <TabsContent value="medications" className="space-y-6">
