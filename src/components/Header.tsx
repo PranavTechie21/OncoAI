@@ -10,6 +10,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { Menu, X, Activity, LogOut, User, Settings } from "lucide-react";
+import GradientText from "./ui/GradientText";
 import { useAuth } from "@/contexts/AuthContext";
 import { ThemeToggle } from "./ThemeToggle";
 import { toast } from "sonner";
@@ -26,6 +27,7 @@ const navLinks = [
 
 export function Header() {
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
+  const [activePath, setActivePath] = useState<string>(() => window.location.pathname || '/');
   const location = useLocation();
   const { user, logout, isAuthenticated } = useAuth();
   const navigate = useNavigate();
@@ -57,13 +59,23 @@ export function Header() {
             <Link
               key={link.path}
               to={link.path}
+              onClick={() => setActivePath(link.path)}
               className={`px-4 py-2 text-sm font-medium rounded-lg transition-colors ${
                 location.pathname === link.path
                   ? "text-primary bg-accent"
                   : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
               }`}
             >
-              {link.name}
+              <GradientText
+                className="px-2 py-0"
+                colors={["#7C3AED", "#06B6D4", "#F472B6"]}
+                animationSpeed={6}
+                showBorder={false}
+                isActive={activePath === link.path}
+                animateOnHover={true}
+              >
+                <span className="text-sm font-medium">{link.name}</span>
+              </GradientText>
             </Link>
           ))}
         </nav>
@@ -139,14 +151,17 @@ export function Header() {
               <Link
                 key={link.path}
                 to={link.path}
-                onClick={() => setMobileMenuOpen(false)}
+                onClick={() => {
+                  setMobileMenuOpen(false);
+                  setActivePath(link.path);
+                }}
                 className={`px-4 py-3 text-sm font-medium rounded-lg transition-colors ${
                   location.pathname === link.path
                     ? "text-primary bg-accent"
                     : "text-muted-foreground hover:text-foreground hover:bg-accent/50"
                 }`}
               >
-                {link.name}
+                <GradientText isActive={activePath === link.path} animateOnHover>{link.name}</GradientText>
               </Link>
             ))}
             <div className="pt-2 mt-2 border-t border-border space-y-2">

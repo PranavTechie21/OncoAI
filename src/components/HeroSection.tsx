@@ -1,5 +1,6 @@
 import { Brain, Dna, HeartPulse } from "lucide-react";
 import { AddPatientDialog } from "./AddPatientDialog";
+import TextType from "./ui/TextType";
 
 export function HeroSection() {
   return (
@@ -16,9 +17,14 @@ export function HeroSection() {
           <div className="space-y-6 animate-fade-in">
             <div>
               <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold text-foreground leading-tight mb-6">
-                Personalized Cancer
-                <br />
-                <span className="text-gradient bg-gradient-to-r from-primary via-primary to-primary/80 dark:from-primary dark:via-primary dark:to-primary/90">Treatment Planning</span>
+                <TextType
+                  text={["Personalized Cancer Treatment Planning"]}
+                  typingSpeed={75}
+                  pauseDuration={5000}
+                  showCursor={true}
+                  cursorCharacter="|"
+                  className="block text-gradient bg-gradient-to-r from-primary via-primary to-primary/80 dark:from-primary dark:via-primary dark:to-primary/90"
+                />
               </h1>
               <p className="mt-6 text-xl text-muted-foreground max-w-2xl leading-relaxed">
                 AI-driven tailored treatment recommendations for each patient.

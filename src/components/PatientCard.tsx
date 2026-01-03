@@ -2,6 +2,8 @@ import { User } from "lucide-react";
 import { Link } from "react-router-dom";
 import { Card } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
+import { motion } from "framer-motion";
+import { HoverCard } from "./HoverCard";
 
 interface PatientCardProps {
   id: number;
@@ -40,11 +42,20 @@ export function PatientCard({
   const riskColor = getRiskColor(riskScore);
 
   return (
-    <Link to={`/patients/${id}`}>
-      <Card
-        className="p-6 bg-card shadow-lg dark:shadow-xl hover:shadow-2xl dark:hover:shadow-2xl transition-all duration-300 border-border/50 dark:border-slate-700/50 hover:border-primary/30 dark:hover:border-primary/40 hover:-translate-y-1 animate-fade-in cursor-pointer group"
-        style={{ animationDelay: `${index * 0.1}s` }}
-      >
+    <motion.div
+      initial={{ opacity: 0, y: 20 }}
+      animate={{ opacity: 1, y: 0 }}
+      transition={{ duration: 0.5, delay: index * 0.1 }}
+      whileHover={{ y: -8, transition: { duration: 0.3 } }}
+    >
+      <Link to={`/patients/${id}`}>
+        <HoverCard hoverScale={1.02}>
+          <Card
+            className="p-6 bg-card shadow-lg dark:shadow-xl hover:shadow-2xl dark:hover:shadow-2xl transition-all duration-300 border-border/50 dark:border-slate-700/50 hover:border-primary/30 dark:hover:border-primary/40 cursor-pointer group relative overflow-hidden"
+          >
+            {/* Animated background gradient on hover */}
+            <div className="absolute inset-0 bg-gradient-to-br from-primary/0 via-primary/0 to-primary/0 group-hover:from-primary/5 group-hover:via-primary/3 group-hover:to-primary/5 transition-all duration-500" />
+            <div className="relative z-10">
       <div className="flex items-start gap-4">
         {/* Avatar */}
         <div className="relative flex-shrink-0">
@@ -96,14 +107,19 @@ export function PatientCard({
         </div>
       </div>
 
-      {/* Progress bar */}
-      <div className="mt-3 h-1.5 bg-muted rounded-full overflow-hidden">
-        <div
-          className={`h-full ${riskColor} rounded-full transition-all duration-500`}
-          style={{ width: `${riskScore}%` }}
-        />
-      </div>
-      </Card>
-    </Link>
+            {/* Progress bar */}
+            <div className="mt-3 h-1.5 bg-muted rounded-full overflow-hidden">
+              <motion.div
+                className={`h-full ${riskColor} rounded-full`}
+                initial={{ width: 0 }}
+                animate={{ width: `${riskScore}%` }}
+                transition={{ duration: 1, delay: index * 0.1 + 0.3, ease: "easeOut" }}
+              />
+            </div>
+            </div>
+          </Card>
+        </HoverCard>
+      </Link>
+    </motion.div>
   );
 }
