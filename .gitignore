@@ -28,6 +28,15 @@ __pycache__/
 *.py[cod]
 *.pyc
 
+# Virtual environments
+venv/
+.venv/
+env/
+.env/
+ENV/
+env.bak/
+venv.bak/
+
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json

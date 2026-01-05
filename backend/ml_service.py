@@ -16,11 +16,17 @@ from dotenv import load_dotenv
 load_dotenv()
 
 try:
-    from langchain.llms import OpenAI
+    # Try new langchain-openai package first (recommended)
+    from langchain_openai import OpenAI
     HAS_LANGCHAIN = True
 except ImportError:
-    HAS_LANGCHAIN = False
-    OpenAI = None
+    try:
+        # Fallback to old langchain.llms (deprecated but still works)
+        from langchain.llms import OpenAI
+        HAS_LANGCHAIN = True
+    except ImportError:
+        HAS_LANGCHAIN = False
+        OpenAI = None
 
 
 
@@ -141,14 +147,16 @@ class OncoAIMLAdapter(MLService):
 
         # LLM (text-only, explanation only) - optional
         self.llm = None
+        self.llm_disabled = False  # Track if LLM was disabled due to errors
         if HAS_LANGCHAIN:
             openai_key = os.getenv('OPENAI_API_KEY')
             if openai_key:
                 try:
                     self.llm = OpenAI(temperature=0.2, openai_api_key=openai_key)
                 except Exception as e:
-                    print(f"Warning: Could not initialize OpenAI LLM: {e}")
+                    # Silently disable LLM if initialization fails
                     self.llm = None
+                    self.llm_disabled = True
 
 
 
@@ -350,12 +358,16 @@ Output:
 
 
 
-        if self.llm is not None:
+        if self.llm is not None and not self.llm_disabled:
             try:
                 return self.llm(prompt)
             except Exception as e:
-                print(f"Warning: LLM explanation failed: {e}")
-                # Fall through to fallback
+                # Silently disable LLM after first failure (e.g., quota exceeded)
+                # This prevents repeated error messages
+                error_msg = str(e).lower()
+                if 'quota' in error_msg or 'rate limit' in error_msg or 'billing' in error_msg:
+                    self.llm_disabled = True
+                # Fall through to fallback (no error printed - it's optional functionality)
         
         # Fallback explanation if LLM is not available
         positive_factors = shap_data.get("positive_factors", {})

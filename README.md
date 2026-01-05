@@ -1,293 +1,196 @@
-<p align="center">
-  <img src="assets/OncoAI.png" alt="OncoAI Logo" height = "200" width="180" />
-</p>
+# OncoAI - Personalized Cancer Treatment Planning Platform
 
-<h1 align="center">OncoAI — Personalized Cancer Treatment Planning Platform</h1>
+**Full-stack application with React frontend and Flask backend with ML model integration**
 
+A modern, AI-powered platform for personalized cancer treatment planning and patient management.
 
-> **An enterprise-grade, AI-powered clinical decision support system for precision oncology.**
+## Features
 
-OncoAI is a full-stack healthcare platform that combines modern web technologies with machine learning to assist clinicians in personalized cancer treatment planning, risk stratification, and longitudinal patient management. Designed with scalability, security, and clinical workflows in mind.
+- 🤖 **AI-Powered Recommendations** - ML-driven personalized treatment suggestions with risk assessment
+- 🧠 **ML Model Integration** - Easy integration of your trained cancer treatment models
+- 📊 **Analytics & Reports** - Comprehensive patient data analysis and visualization
+- 👥 **Patient Management** - Complete patient records with clinical data storage
+- 📅 **Appointment Scheduling** - Manage patient appointments and follow-ups
+- 💬 **AI Chatbot** - Interactive assistant powered by OpenAI/Gemini
+- 📈 **Treatment Pathways** - Visualize patient-specific treatment protocols
+- 🎯 **Risk Assessment** - AI-calculated risk scores based on clinical factors
+- 🌓 **Dark Mode** - Beautiful dark and light themes
+- 🔐 **Authentication** - Secure JWT-based login and user management
 
----
-
-## 🌟 Key Highlights
-
-* **Clinical Decision Support (CDSS)** – Evidence-aware AI recommendations aligned with patient-specific data
-* **Precision Oncology Ready** – Supports genomic, clinical, and treatment history features
-* **Modular ML Integration** – Plug-and-play ML pipelines (classification, risk scoring, survival analysis)
-* **Production-Ready Architecture** – Clean separation of frontend, backend, and ML layers
-* **Secure by Design** – JWT authentication, role-based access, and audit-friendly APIs
-
----
-
-## 🚀 Core Features
-
-### 🤖 AI-Powered Treatment Recommendations
-
-* Personalized therapy suggestions using ML models
-* Risk-adjusted confidence scoring
-* Benefit–risk tradeoff explanations
-* Model versioning support
-
-### 🧠 Machine Learning Integration
-
-* scikit-learn compatible pipelines
-* Supports:
-
-  * Risk classification
-  * Treatment response prediction
-  * Survival probability estimation
-* Easy replacement with deep learning models (TensorFlow / PyTorch ready)
-
-### 👥 Patient Management System
-
-* Unified longitudinal patient records
-* Clinical, demographic, and genomic data storage
-* Treatment history & outcome tracking
-
-### 📊 Analytics & Reporting
-
-* Interactive dashboards with real-time metrics
-* Patient cohort analysis
-* Exportable reports (PDF / Excel)
-* Outcome-based treatment evaluation
-
-### 📅 Appointment & Workflow Management
-
-* Calendar-based scheduling
-* Doctor assignment & follow-ups
-* Status tracking and reminders
-
-### 💬 AI Clinical Assistant
-
-* Context-aware medical chatbot
-* Powered by OpenAI GPT-4o / Google Gemini
-* Supports:
-
-  * Treatment explanation
-  * Clinical query assistance
-  * Patient-friendly summaries
-
-### 🎯 Risk Assessment Engine
-
-* AI-generated risk scores
-* Multi-factor clinical evaluation
-* Stratification for low / medium / high risk
-
-### 🌓 Modern UI/UX
-
-* Dark & Light themes
-* Responsive, accessible design
-* Built with Tailwind + shadcn/ui
-
-### 🔐 Authentication & Security
-
-* JWT-based authentication
-* Secure role-based access control
-* CORS-protected APIs
-
----
-
-## 🧰 Technology Stack
+## Tech Stack
 
 ### Frontend
-
-* **React 18** + TypeScript
-* **Tailwind CSS** + shadcn/ui
-* **React Router v6**
-* **Context API** for global state
-* **Recharts** for analytics
-* **OpenAI / Gemini SDKs** for AI chat
+- **React 18** + TypeScript
+- **Tailwind CSS** + shadcn/ui
+- **React Router v6** for routing
+- **React Context API** for state management
+- **Recharts** for data visualization
+- **OpenAI GPT-4o / Google Gemini** for AI chatbot
 
 ### Backend
+- **Flask** - Python web framework
+- **SQLAlchemy** - ORM for database operations
+- **Flask-CORS** - Cross-origin resource sharing
+- **JWT** - Authentication tokens
+- **scikit-learn** - ML model integration
+- **SQLite/PostgreSQL** - Database
 
-* **Flask** (REST API)
-* **SQLAlchemy** (ORM)
-* **Flask-CORS**
-* **JWT Authentication**
-* **scikit-learn** (ML integration)
-* **SQLite / PostgreSQL**
-
----
-
-## ⚙️ Getting Started
+## Getting Started
 
 ### Prerequisites
 
-* Node.js **18+**
-* Python **3.8+**
-* npm & pip
+- **Node.js 18+** and npm (for frontend)
+- **Python 3.8+** (for backend)
+- **pip** (Python package manager)
 
----
+### Backend Setup
 
-## 🧪 Backend Setup
-
+1. Navigate to backend directory:
 ```bash
 cd backend
 ```
 
-### Create Virtual Environment
-
+2. Create and activate virtual environment:
 ```bash
+# Windows
 python -m venv venv
-source venv/bin/activate   # macOS/Linux
-venv\\Scripts\\activate      # Windows
+venv\Scripts\activate
+
+# Mac/Linux
+python3 -m venv venv
+source venv/bin/activate
 ```
 
-### Install Dependencies
-
+3. Install Python dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-### Environment Configuration
-
+4. Set up environment variables:
 ```bash
+# Copy example file
 cp .env.example .env
+
+# Edit .env and set:
+# DATABASE_URL=sqlite:///oncoai.db
+# SECRET_KEY=your-secret-key-here
 ```
 
-```env
-DATABASE_URL=sqlite:///oncoai.db
-SECRET_KEY=your-secret-key
-JWT_EXPIRY_HOURS=24
-```
-
-### Initialize Database
-
+5. Initialize database:
 ```bash
 python -c "from app import app, db; app.app_context().push(); db.create_all()"
 ```
 
-### Run Backend
-
+6. Start the backend server:
 ```bash
 python app.py
 ```
 
-📍 Backend runs on: `http://localhost:5000`
+Backend will run on `http://localhost:5000`
 
----
+### Frontend Setup
 
-## 🎨 Frontend Setup
-
-### Install Dependencies
-
+1. Install dependencies:
 ```bash
 npm install
 ```
 
-### Environment Variables
-
-```env
+2. Set up environment variables:
+```bash
+# Create .env file in root directory
 VITE_API_URL=http://localhost:5000/api
 VITE_AI_PROVIDER=openai
-VITE_OPENAI_API_KEY=sk-xxxx
+VITE_OPENAI_API_KEY=sk-your-key-here
 # OR
-VITE_GEMINI_API_KEY=xxxx
+VITE_GEMINI_API_KEY=your-gemini-key-here
 ```
 
-### Run Frontend
-
+3. Start the development server:
 ```bash
 npm run dev
 ```
 
-📍 Frontend runs on: `http://localhost:8080`
+Frontend will run on `http://localhost:8080`
 
----
+### Quick Start (Both Servers)
 
-## ⚡ Quick Start
-
-**Terminal 1 – Backend**
-
+**Terminal 1 - Backend:**
 ```bash
 cd backend
 python app.py
 ```
 
-**Terminal 2 – Frontend**
-
+**Terminal 2 - Frontend:**
 ```bash
 npm run dev
 ```
 
----
 
-## 🏗️ Project Structure
+## Building for Production
+
+```bash
+npm run build
+```
+
+The production build will be in the `dist` directory.
+
+## Project Structure
 
 ```
 .
-├── backend/
-│   ├── app.py              # Flask app entry
-│   ├── models.py           # Database schemas
-│   ├── routes.py           # REST API routes
-│   ├── ml_service.py       # ML inference layer
-│   ├── requirements.txt
-│   └── .env.example
+├── backend/                 # Flask backend
+│   ├── app.py              # Main Flask application
+│   ├── models.py           # Database models
+│   ├── routes.py           # API routes
+│   ├── ml_service.py       # ML model service
+│   ├── requirements.txt    # Python dependencies
+│   └── .env.example        # Environment variables template
 │
-├── src/
-│   ├── components/
-│   ├── pages/
-│   ├── services/
-│   ├── contexts/
-│   ├── hooks/
-│   └── lib/
+├── src/                     # React frontend
+│   ├── components/         # Reusable UI components
+│   │   ├── ui/            # shadcn/ui components
+│   │   └── ...            # Custom components
+│   ├── pages/             # Page components
+│   ├── services/          # API services
+│   │   └── api.ts        # Backend API client
+│   ├── contexts/          # React contexts
+│   ├── hooks/             # Custom hooks
+│   └── lib/               # Utilities
 │
-└── README.md
+└── README.md              # This file
 ```
 
----
-
-## 📈 Functional Modules
+## Features Overview
 
 ### Dashboard
+- Real-time analytics and metrics
+- Patient overview and trends
+- Quick actions and shortcuts
 
-* Real-time metrics
-* Patient trends
-* System health overview
-
-### Patient Profiles
-
-* Clinical summary
-* Risk scores
-* Treatment timelines
+### Patient Management
+- Comprehensive patient records
+- Risk score assessment
+- Treatment history tracking
+- Genomic profile analysis
 
 ### AI Recommendations
+- Personalized treatment suggestions
+- Confidence scoring
+- Benefits and risk analysis
+- Priority-based filtering
 
-* Ranked therapy options
-* Explainable AI outputs
-* Model confidence levels
-
-### Reports & Insights
-
-* Interactive charts
-* Custom time windows
-* Export-ready analytics
+### Reports
+- Interactive charts and visualizations
+- Exportable reports (PDF, Excel)
+- Custom date ranges
+- Treatment outcome analysis
 
 ### Appointments
+- Calendar view
+- Schedule management
+- Doctor assignment
+- Status tracking
 
-* Calendar-based scheduling
-* Status & follow-up tracking
+## License
 
----
-
-## 🔮 Roadmap (Suggested Enhancements)
-
-* 🔬 Genomic variant interpretation (VCF support)
-* 🧠 Deep learning models for survival analysis
-* 📜 Clinical guideline alignment (NCCN / ESMO)
-* 🏥 Hospital EMR integration (FHIR-ready)
-* 🔒 HIPAA/GDPR compliance layer
-* ☁️ Cloud deployment (Docker + AWS/GCP)
-
----
-
-## 📄 License
-
-**Private / Proprietary**
-All rights reserved.
-
----
-
-> ⚠️ **Disclaimer**: OncoAI is a decision-support tool and not a replacement for professional medical judgment.
+Private - All rights reserved

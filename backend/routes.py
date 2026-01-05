@@ -1,8 +1,8 @@
-from flask import Blueprint, request, jsonify
+from flask import Blueprint, request, jsonify, current_app
 from flask_sqlalchemy import SQLAlchemy
-from ml_service import MLService
+from ml_service import ml_service
 import json
-from datetime import datetime
+from datetime import datetime, timedelta
 from functools import wraps
 import jwt
 import os
@@ -15,16 +15,15 @@ Patient = None
 Appointment = None
 Report = None
 
-def init_routes(db_instance, User_model, Patient_model, Appointment_model, Report_model):
+def init_routes(db_instance, User_model, Patient_model, Appointment_model, Report_model, Outcome_model):
     """Initialize route dependencies"""
-    global db, User, Patient, Appointment, Report
+    global db, User, Patient, Appointment, Report, Outcome
     db = db_instance
     User = User_model
     Patient = Patient_model
     Appointment = Appointment_model
     Report = Report_model
-
-ml_service = MLService()
+    Outcome = Outcome_model
 
 # Authentication decorator
 def token_required(f):
@@ -33,6 +32,12 @@ def token_required(f):
         token = None
         if 'Authorization' in request.headers:
             auth_header = request.headers['Authorization']
+            # Debug: log received Authorization header (masked)
+            try:
+                masked = auth_header[:10] + '...' if auth_header else 'None'
+            except Exception:
+                masked = str(auth_header)
+            print(f"[Auth] Received Authorization header: {masked}")
             try:
                 token = auth_header.split(' ')[1]  # Bearer <token>
             except IndexError:
@@ -42,7 +47,7 @@ def token_required(f):
             return jsonify({'message': 'Token is missing'}), 401
         
         try:
-            data = jwt.decode(token, os.getenv('SECRET_KEY', 'your-secret-key-change-in-production'), algorithms=['HS256'])
+            data = jwt.decode(token, current_app.config.get('SECRET_KEY', os.getenv('SECRET_KEY', 'your-secret-key-change-in-production')), algorithms=['HS256'])
             current_user = User.query.get(data['user_id'])
             if not current_user:
                 return jsonify({'message': 'User not found'}), 401
@@ -70,14 +75,24 @@ def optional_auth(f):
         
         if token:
             try:
-                data = jwt.decode(token, os.getenv('SECRET_KEY', 'your-secret-key-change-in-production'), algorithms=['HS256'])
+                data = jwt.decode(token, current_app.config.get('SECRET_KEY', os.getenv('SECRET_KEY', 'your-secret-key-change-in-production')), algorithms=['HS256'])
                 current_user = User.query.get(data['user_id'])
-            except:
-                # If token is invalid, continue without auth
+            except jwt.ExpiredSignatureError:
+                # If auth enforcement is active, return 401
+                enforce_until = current_app.config.get('ENFORCE_AUTH_UNTIL')
+                if enforce_until and datetime.utcnow() < enforce_until:
+                    return jsonify({'message': 'Token has expired'}), 401
+                # otherwise proceed without auth (demo)
+                pass
+            except Exception:
                 pass
         
         # If no user, create or get default demo user
         if not current_user:
+            # if auth enforcement is active and there's no valid user, raise to force 401
+            enforce_until = current_app.config.get('ENFORCE_AUTH_UNTIL')
+            if enforce_until and datetime.utcnow() < enforce_until:
+                return jsonify({'message': 'Authentication required'}), 401
             # Get or create default demo user
             default_user = User.query.filter_by(email='demo@oncoai.com').first()
             if not default_user:
@@ -120,6 +135,7 @@ def register():
             npi=data.get('npi'),
             specialty=data.get('specialty'),
             subspecialty=data.get('subspecialty'),
+            location=data.get('location'),
         )
         user.set_password(data['password'])
         
@@ -191,9 +207,15 @@ def login():
         token = jwt.encode({
             'user_id': user.id,
             'email': user.email,
-            'exp': datetime.utcnow().timestamp() + 86400  # 24 hours
-        }, os.getenv('SECRET_KEY', 'your-secret-key-change-in-production'), algorithm='HS256')
-        
+            'exp': datetime.utcnow() + timedelta(hours=24)  # 24 hours
+        }, current_app.config.get('SECRET_KEY', os.getenv('SECRET_KEY', 'your-secret-key-change-in-production')), algorithm='HS256')
+        # Debug: log successful login and token length (do not print token value)
+        try:
+            tlen = len(token)
+        except Exception:
+            tlen = 'unknown'
+        print(f"[Auth] Login successful for {user.email} (id={user.id}), token length={tlen}")
+
         return jsonify({
             'message': 'Login successful',
             'token': token,
@@ -218,7 +240,7 @@ def get_patients(current_user):
         return jsonify({'message': str(e)}), 500
 
 @patients_bp.route('/<int:patient_id>', methods=['GET'])
-@token_required
+@optional_auth
 def get_patient(current_user, patient_id):
     """Get patient by ID"""
     try:
@@ -406,7 +428,7 @@ def list_recommendations(current_user):
         return jsonify({"message": str(e)}), 500
 
 @recommendations_bp.route('/patient/<int:patient_id>', methods=['GET'])
-@token_required
+@optional_auth
 def get_recommendations(current_user, patient_id):
     """Get AI recommendations for a patient"""
     try:
@@ -414,21 +436,25 @@ def get_recommendations(current_user, patient_id):
         if not patient:
             return jsonify({'message': 'Patient not found'}), 404
         
-        # Generate recommendations using ML service
+        # Extract clinical data for ML model
+        clinical_data = patient.get_clinical_data()
+        
+        # Map patient data to ML model expected format
+        # The new model expects: age, stage, targetable_mutation, comorbidity_score
         patient_data = {
             'age': patient.age,
-            'gender': patient.gender,
-            'cancer_type': patient.cancer_type,
-            'stage': patient.stage,
-            'clinical_data': patient.get_clinical_data(),
-            'risk_score': patient.risk_score
+            'stage': patient.stage or 'II',  # Default to stage II if not set
+            'targetable_mutation': clinical_data.get('targetable_mutation', False),
+            'comorbidity_score': clinical_data.get('comorbidity_score', 0.3)
         }
         
         recommendations = ml_service.generate_treatment_recommendations(patient_data)
         
         # Save recommendations to patient
         patient.set_ml_recommendations(recommendations)
-        patient.set_treatment_protocol(recommendations.get('treatment_protocol', {}))
+        # Update risk score based on ML model output
+        patient.risk_score = ml_service.calculate_risk_score(patient_data)
+        patient.calculate_risk_level()
         db.session.commit()
         
         return jsonify({
@@ -436,6 +462,8 @@ def get_recommendations(current_user, patient_id):
             'recommendations': recommendations
         }), 200
     except Exception as e:
+        import traceback
+        print(f"Error generating recommendations: {traceback.format_exc()}")
         return jsonify({'message': str(e)}), 500
 
 # Reports Blueprint
@@ -488,6 +516,58 @@ def generate_report(current_user, patient_id):
         }), 201
     except Exception as e:
         db.session.rollback()
+        return jsonify({'message': str(e)}), 500
+
+@reports_bp.route('/patient/<int:patient_id>/download', methods=['GET'])
+@token_required
+def download_patient_report(current_user, patient_id):
+    """Download a comprehensive report for a patient as JSON"""
+    try:
+        patient = Patient.query.filter_by(id=patient_id, doctor_id=current_user.id).first()
+        if not patient:
+            return jsonify({'message': 'Patient not found'}), 404
+        
+        # Get recommendations if available
+        recommendations = patient.get_ml_recommendations()
+        if not recommendations or not recommendations.get('treatments'):
+            # Generate recommendations if not available
+            from ml_service import ml_service
+            clinical_data = patient.get_clinical_data()
+            patient_data = {
+                'age': patient.age,
+                'stage': patient.stage or 'II',
+                'targetable_mutation': clinical_data.get('targetable_mutation', False),
+                'comorbidity_score': clinical_data.get('comorbidity_score', 0.3)
+            }
+            recommendations = ml_service.generate_treatment_recommendations(patient_data)
+        
+        report_data = {
+            'patient_info': {
+                'name': patient.name,
+                'age': patient.age,
+                'gender': patient.gender,
+                'email': patient.email,
+                'phone': patient.phone,
+                'cancer_type': patient.cancer_type,
+                'cancer_subtype': patient.cancer_subtype,
+                'stage': patient.stage,
+                'diagnosis_date': patient.diagnosis_date.isoformat() if patient.diagnosis_date else None,
+            },
+            'clinical_data': patient.get_clinical_data(),
+            'risk_assessment': {
+                'score': patient.risk_score,
+                'level': patient.risk_level
+            },
+            'recommendations': recommendations,
+            'generated_at': datetime.utcnow().isoformat(),
+            'generated_by': current_user.name,
+            'doctor_email': current_user.email
+        }
+        
+        return jsonify(report_data), 200
+    except Exception as e:
+        import traceback
+        print(f"Error generating download report: {traceback.format_exc()}")
         return jsonify({'message': str(e)}), 500
 
 # Appointments Blueprint
@@ -577,5 +657,183 @@ def delete_appointment(current_user, appointment_id):
         return jsonify({'message': 'Appointment deleted successfully'}), 200
     except Exception as e:
         db.session.rollback()
+        return jsonify({'message': str(e)}), 500
+
+# Outcomes Blueprint
+outcomes_bp = Blueprint('outcomes', __name__)
+
+@outcomes_bp.route('/patient/<int:patient_id>', methods=['GET'])
+@token_required
+def get_patient_outcomes(current_user, patient_id):
+    """Get all outcomes for a patient"""
+    try:
+        patient = Patient.query.filter_by(id=patient_id, doctor_id=current_user.id).first()
+        if not patient:
+            return jsonify({'message': 'Patient not found'}), 404
+        
+        outcomes = Outcome.query.filter_by(patient_id=patient_id).order_by(Outcome.created_at.desc()).all()
+        
+        return jsonify({
+            'patient_id': patient_id,
+            'outcomes': [o.to_dict() for o in outcomes]
+        }), 200
+    except Exception as e:
+        return jsonify({'message': str(e)}), 500
+
+@outcomes_bp.route('/patient/<int:patient_id>', methods=['POST'])
+@token_required
+def create_outcome(current_user, patient_id):
+    """Create or update an outcome record for a patient"""
+    try:
+        patient = Patient.query.filter_by(id=patient_id, doctor_id=current_user.id).first()
+        if not patient:
+            return jsonify({'message': 'Patient not found'}), 404
+        
+        data = request.get_json()
+        
+        # Check if outcome already exists for this treatment
+        existing = Outcome.query.filter_by(
+            patient_id=patient_id,
+            treatment_type=data.get('treatment_type')
+        ).first()
+        
+        if existing:
+            # Update existing outcome
+            outcome = existing
+        else:
+            # Create new outcome
+            outcome = Outcome(
+                patient_id=patient_id,
+                doctor_id=current_user.id,
+                treatment_type=data.get('treatment_type')
+            )
+            db.session.add(outcome)
+        
+        # Update predicted outcomes (from ML recommendations)
+        if 'predicted_response_probability' in data:
+            outcome.predicted_response_probability = data['predicted_response_probability']
+        if 'predicted_survival_1yr' in data:
+            outcome.predicted_survival_1yr = data['predicted_survival_1yr']
+        if 'predicted_survival_3yr' in data:
+            outcome.predicted_survival_3yr = data['predicted_survival_3yr']
+        if 'predicted_survival_5yr' in data:
+            outcome.predicted_survival_5yr = data['predicted_survival_5yr']
+        if 'predicted_response_rate' in data:
+            outcome.predicted_response_rate = data['predicted_response_rate']
+        if 'predicted_remission_probability' in data:
+            outcome.predicted_remission_probability = data['predicted_remission_probability']
+        
+        # Update actual outcomes
+        if 'actual_response' in data:
+            outcome.actual_response = data['actual_response']
+        if 'actual_response_date' in data:
+            outcome.actual_response_date = datetime.strptime(data['actual_response_date'], '%Y-%m-%d').date() if data['actual_response_date'] else None
+        if 'actual_survival_status' in data:
+            outcome.actual_survival_status = data['actual_survival_status']
+        if 'actual_survival_months' in data:
+            outcome.actual_survival_months = data['actual_survival_months']
+        if 'actual_remission_status' in data:
+            outcome.actual_remission_status = data['actual_remission_status']
+        if 'actual_remission_date' in data:
+            outcome.actual_remission_date = datetime.strptime(data['actual_remission_date'], '%Y-%m-%d').date() if data['actual_remission_date'] else None
+        if 'treatment_start_date' in data:
+            outcome.treatment_start_date = datetime.strptime(data['treatment_start_date'], '%Y-%m-%d').date() if data['treatment_start_date'] else None
+        if 'treatment_end_date' in data:
+            outcome.treatment_end_date = datetime.strptime(data['treatment_end_date'], '%Y-%m-%d').date() if data['treatment_end_date'] else None
+        if 'notes' in data:
+            outcome.notes = data['notes']
+        if 'outcome_data' in data:
+            outcome.set_outcome_data(data['outcome_data'])
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Outcome saved successfully',
+            'outcome': outcome.to_dict()
+        }), 200 if existing else 201
+    except Exception as e:
+        db.session.rollback()
+        import traceback
+        print(f"Error saving outcome: {traceback.format_exc()}")
+        return jsonify({'message': str(e)}), 500
+
+@outcomes_bp.route('/<int:outcome_id>', methods=['PUT'])
+@token_required
+def update_outcome(current_user, outcome_id):
+    """Update an outcome record"""
+    try:
+        outcome = Outcome.query.get(outcome_id)
+        if not outcome:
+            return jsonify({'message': 'Outcome not found'}), 404
+        
+        if outcome.doctor_id != current_user.id:
+            return jsonify({'message': 'Unauthorized'}), 403
+        
+        data = request.get_json()
+        
+        # Update fields
+        for key, value in data.items():
+            if hasattr(outcome, key):
+                if key in ['actual_response_date', 'actual_remission_date', 'treatment_start_date', 'treatment_end_date']:
+                    if value:
+                        setattr(outcome, key, datetime.strptime(value, '%Y-%m-%d').date())
+                    else:
+                        setattr(outcome, key, None)
+                elif key == 'outcome_data':
+                    outcome.set_outcome_data(value)
+                else:
+                    setattr(outcome, key, value)
+        
+        db.session.commit()
+        
+        return jsonify({
+            'message': 'Outcome updated successfully',
+            'outcome': outcome.to_dict()
+        }), 200
+    except Exception as e:
+        db.session.rollback()
+        return jsonify({'message': str(e)}), 500
+
+@outcomes_bp.route('/comparison/patient/<int:patient_id>', methods=['GET'])
+@token_required
+def get_outcome_comparison(current_user, patient_id):
+    """Get comparison between predicted and actual outcomes"""
+    try:
+        patient = Patient.query.filter_by(id=patient_id, doctor_id=current_user.id).first()
+        if not patient:
+            return jsonify({'message': 'Patient not found'}), 404
+        
+        outcomes = Outcome.query.filter_by(patient_id=patient_id).all()
+        
+        comparisons = []
+        for outcome in outcomes:
+            comparison = {
+                'treatment_type': outcome.treatment_type,
+                'predicted': {
+                    'response_probability': outcome.predicted_response_probability,
+                    'survival_1yr': outcome.predicted_survival_1yr,
+                    'survival_3yr': outcome.predicted_survival_3yr,
+                    'survival_5yr': outcome.predicted_survival_5yr,
+                    'response_rate': outcome.predicted_response_rate,
+                    'remission_probability': outcome.predicted_remission_probability,
+                },
+                'actual': {
+                    'response': outcome.actual_response,
+                    'survival_status': outcome.actual_survival_status,
+                    'survival_months': outcome.actual_survival_months,
+                    'remission_status': outcome.actual_remission_status,
+                },
+                'treatment_dates': {
+                    'start': outcome.treatment_start_date.isoformat() if outcome.treatment_start_date else None,
+                    'end': outcome.treatment_end_date.isoformat() if outcome.treatment_end_date else None,
+                }
+            }
+            comparisons.append(comparison)
+        
+        return jsonify({
+            'patient_id': patient_id,
+            'comparisons': comparisons
+        }), 200
+    except Exception as e:
         return jsonify({'message': str(e)}), 500
 
