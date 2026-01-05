@@ -23,6 +23,9 @@ class ApiService {
 
     if (token) {
       headers['Authorization'] = `Bearer ${token}`;
+      console.log(`[API] Sending request to ${endpoint} with token (length: ${token.length})`);
+    } else {
+      console.log(`[API] Sending request to ${endpoint} without token`);
     }
 
     try {
@@ -57,10 +60,23 @@ class ApiService {
     return response;
   }
 
-  async register(name: string, email: string, password: string) {
+  async register(userData: {
+    name: string;
+    email: string;
+    password: string;
+    role?: string;
+    phone?: string;
+    institution?: string;
+    department?: string;
+    license?: string;
+    npi?: string;
+    specialty?: string;
+    subspecialty?: string;
+    location?: string;
+  }) {
     const response = await this.request<ApiResponse<{ user: any }>>('/auth/register', {
       method: 'POST',
-      body: JSON.stringify({ name, email, password }),
+      body: JSON.stringify(userData),
     });
     return response;
   }
@@ -126,6 +142,10 @@ class ApiService {
     });
   }
 
+  async downloadPatientReport(patientId: number) {
+    return this.request<any>(`/reports/patient/${patientId}/download`);
+  }
+
   // Appointments endpoints
   async getAppointments() {
     return this.request<ApiResponse<{ appointments: any[] }>>('/appointments');
@@ -133,7 +153,9 @@ class ApiService {
 
   // Dashboard summary
   async getDashboardSummary() {
-    return this.request<ApiResponse<any>>('/dashboard/summary');
+    const response = await this.request<any>('/dashboard/summary');
+    // Backend returns data directly, not wrapped in ApiResponse format
+    return response;
   }
 
   async createAppointment(appointmentData: any) {
@@ -154,6 +176,29 @@ class ApiService {
     return this.request<ApiResponse<{ message: string }>>(`/appointments/${id}`, {
       method: 'DELETE',
     });
+  }
+
+  // Outcomes endpoints
+  async getPatientOutcomes(patientId: number) {
+    return this.request<ApiResponse<{ outcomes: any[] }>>(`/outcomes/patient/${patientId}`);
+  }
+
+  async createOutcome(patientId: number, outcomeData: any) {
+    return this.request<ApiResponse<{ outcome: any }>>(`/outcomes/patient/${patientId}`, {
+      method: 'POST',
+      body: JSON.stringify(outcomeData),
+    });
+  }
+
+  async updateOutcome(outcomeId: number, outcomeData: any) {
+    return this.request<ApiResponse<{ outcome: any }>>(`/outcomes/${outcomeId}`, {
+      method: 'PUT',
+      body: JSON.stringify(outcomeData),
+    });
+  }
+
+  async getOutcomeComparison(patientId: number) {
+    return this.request<ApiResponse<{ comparisons: any[] }>>(`/outcomes/comparison/patient/${patientId}`);
   }
 
   // Health check

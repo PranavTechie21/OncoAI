@@ -25,7 +25,7 @@ export default function AnimatedNumber({
   const [isAnimating, setIsAnimating] = useState(false);
   const startTimeRef = useRef<number | null>(null);
   const animationFrameRef = useRef<number | null>(null);
-  const previousValueRef = useRef<number | string>(value);
+  const previousValueRef = useRef<number | string | null>(null);
 
   // Parse the value to get the numeric part
   const parseValue = (val: number | string): number => {

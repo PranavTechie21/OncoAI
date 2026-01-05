@@ -34,6 +34,7 @@ import {
 } from "lucide-react";
 import { apiService } from "@/services/api";
 import { toast } from "@/components/ui/use-toast";
+import AnimatedNumber from "@/components/ui/AnimatedNumber";
 
 const doctors = [
   { id: 1, name: "Dr. Sarah Chen", specialty: "Oncology" },
@@ -538,19 +539,19 @@ export default function Appointments() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
               <Card className="p-6 bg-card/50 backdrop-blur-sm border-border/50 dark:border-slate-700/50 hover:border-primary/50 hover:shadow-lg transition-all duration-300">
                 <p className="text-sm text-muted-foreground mb-2">Total Appointments</p>
-                <p className="text-3xl font-bold text-foreground">{loading ? "…" : stats.total}</p>
+                <p className="text-3xl font-bold text-foreground">{loading ? "…" : <AnimatedNumber value={stats.total} duration={2000} />}</p>
               </Card>
               <Card className="p-6 bg-card/50 backdrop-blur-sm border-border/50 dark:border-slate-700/50 hover:border-primary/50 hover:shadow-lg transition-all duration-300">
                 <p className="text-sm text-muted-foreground mb-2">Upcoming</p>
-                <p className="text-3xl font-bold text-primary">{loading ? "…" : stats.upcoming}</p>
+                <p className="text-3xl font-bold text-primary">{loading ? "…" : <AnimatedNumber value={stats.upcoming} duration={2000} />}</p>
               </Card>
               <Card className="p-6 bg-card/50 backdrop-blur-sm border-border/50 dark:border-slate-700/50 hover:border-success/50 hover:shadow-lg transition-all duration-300">
                 <p className="text-sm text-muted-foreground mb-2">Today</p>
-                <p className="text-3xl font-bold text-success">{loading ? "…" : stats.today}</p>
+                <p className="text-3xl font-bold text-success">{loading ? "…" : <AnimatedNumber value={stats.today} duration={2000} />}</p>
               </Card>
               <Card className="p-6 bg-card/50 backdrop-blur-sm border-border/50 dark:border-slate-700/50 hover:border-warning/50 hover:shadow-lg transition-all duration-300">
                 <p className="text-sm text-muted-foreground mb-2">Completed</p>
-                <p className="text-3xl font-bold text-warning">{loading ? "…" : stats.completed}</p>
+                <p className="text-3xl font-bold text-warning">{loading ? "…" : <AnimatedNumber value={stats.completed} duration={2000} />}</p>
               </Card>
             </div>
           </div>

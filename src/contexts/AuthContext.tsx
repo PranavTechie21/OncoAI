@@ -21,15 +21,23 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(() => {
     const stored = localStorage.getItem("oncoai_user");
-    // Persist demo/local user across reloads even if no token is present.
-    // Previously we required both `oncoai_user` and `oncoai_token` which
-    // caused demo users (no token) to be logged out after a reload.
-    if (stored) {
+    const token = localStorage.getItem("oncoai_token");
+    // Only restore a stored user if a token is present. Restoring a user
+    // without a token caused the UI to appear logged in while the backend
+    // received no Authorization header (leading to 'Token is missing').
+    if (stored && token) {
       try {
+        // eslint-disable-next-line @typescript-eslint/no-unsafe-return
         return JSON.parse(stored);
       } catch {
         return null;
       }
+    }
+    // If there's a stored user but no token, clear it to avoid misleading state.
+    if (stored && !token) {
+      try {
+        localStorage.removeItem("oncoai_user");
+      } catch {}
     }
     return null;
   });
@@ -39,18 +47,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     try {
       setLoading(true);
       const response = await apiService.login(email, password);
-      
-      if (response.token && response.user) {
+      // Backend may return `{ token, user }` or `{ data: { token, user } }`.
+      // Log for debugging and support both shapes.
+      // eslint-disable-next-line no-console
+      console.debug('[Auth] login response:', response);
+
+      const token = (response && (response.token || response.data?.token)) || null;
+      const userPayload = (response && (response.user || response.data?.user)) || null;
+
+      if (token && userPayload) {
         const newUser = {
-          id: response.user.id,
-          email: response.user.email,
-          name: response.user.name,
-          role: response.user.role,
+          id: userPayload.id,
+          email: userPayload.email,
+          name: userPayload.name,
+          role: userPayload.role,
         };
-        
+
         setUser(newUser);
-        localStorage.setItem("oncoai_token", response.token);
+        localStorage.setItem("oncoai_token", token);
         localStorage.setItem("oncoai_user", JSON.stringify(newUser));
+        // Debug: confirm token stored
+        // eslint-disable-next-line no-console
+        console.debug('[Auth] token saved length:', (localStorage.getItem('oncoai_token') || '').length);
         return true;
       }
       return false;

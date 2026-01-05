@@ -6,6 +6,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Progress } from "@/components/ui/progress";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { AIRecommendationsPanel } from "@/components/AIRecommendationsPanel";
 import { 
   Brain, 
   TrendingUp, 
@@ -27,6 +29,9 @@ export default function Recommendations() {
   const [recommendations, setRecommendations] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [selectedPatientId, setSelectedPatientId] = useState<number | null>(null);
+  const [showDetailsDialog, setShowDetailsDialog] = useState(false);
+  const [patientData, setPatientData] = useState<any>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -302,7 +307,24 @@ export default function Recommendations() {
 
                     {/* Actions */}
                     <div className="flex gap-3 pt-6 border-t border-border/50 dark:border-slate-700/50">
-                      <Button className="flex-1 gap-2 shadow-md hover:shadow-lg hover:scale-105 transition-all duration-300 group/btn">
+                      <Button 
+                        className="flex-1 gap-2 shadow-md hover:shadow-lg hover:scale-105 transition-all duration-300 group/btn"
+                        onClick={async () => {
+                          try {
+                            setSelectedPatientId(rec.id);
+                            // Fetch patient data for the recommendations panel
+                            const patientResponse = await apiService.getPatient(rec.id);
+                            const patient = patientResponse?.patient || patientResponse?.data?.patient || patientResponse;
+                            setPatientData(patient);
+                            setShowDetailsDialog(true);
+                          } catch (err) {
+                            console.error("Error fetching patient data:", err);
+                            // Still open dialog even if patient fetch fails
+                            setSelectedPatientId(rec.id);
+                            setShowDetailsDialog(true);
+                          }
+                        }}
+                      >
                         Review Details
                         <ArrowRight className="h-4 w-4 group-hover/btn:translate-x-1 transition-transform duration-300" />
                       </Button>
@@ -332,6 +354,29 @@ export default function Recommendations() {
         </section>
       </main>
       <Footer />
+
+      {/* AI Recommendations Details Dialog */}
+      <Dialog open={showDetailsDialog} onOpenChange={setShowDetailsDialog}>
+        <DialogContent className="max-w-6xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Brain className="h-5 w-5 text-primary" />
+              AI Treatment Recommendations
+            </DialogTitle>
+          </DialogHeader>
+          {selectedPatientId && (
+            <AIRecommendationsPanel
+              patientId={selectedPatientId}
+              patientData={patientData}
+              onClose={() => {
+                setShowDetailsDialog(false);
+                setSelectedPatientId(null);
+                setPatientData(null);
+              }}
+            />
+          )}
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

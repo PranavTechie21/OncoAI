@@ -8,17 +8,28 @@ export function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           {/* Brand */}
           <div className="space-y-4">
-            <Link to="/" className="flex items-center gap-3">
-              <img 
-                src="/OncoAI.png" 
-                alt="OncoAI Logo" 
-                className="h-14 w-14 object-contain drop-shadow-lg brightness-110"
-              />
-              <span className="text-xl font-bold text-foreground">
-                Onco<span className="text-primary">AI</span>
-              </span>
+            <Link to="/" className="flex items-start gap-3 group">
+              <div className="flex flex-col items-start gap-2">
+                {/* Logo with rounded rectangle container */}
+                <div className="flex items-center gap-3">
+                  <div className="rounded-lg bg-primary/10 dark:bg-primary/20 p-2 border border-primary/20">
+                    <img 
+                      src="/OncoAI.png" 
+                      alt="OncoAI Logo" 
+                      className="h-10 w-10 object-contain drop-shadow-lg brightness-110"
+                    />
+                  </div>
+                  <span className="text-xl font-bold text-foreground group-hover:text-primary transition-colors">
+                    Onco<span className="text-primary">AI</span>
+                  </span>
+                </div>
+                {/* Intelligent Cancer Care tagline */}
+                <p className="text-xs font-medium text-primary/80 ml-1">
+                  Intelligent Cancer Care
+                </p>
+              </div>
             </Link>
-            <p className="text-sm text-muted-foreground">
+            <p className="text-sm text-muted-foreground leading-relaxed">
               AI-powered personalized cancer treatment planning for better patient outcomes.
             </p>
           </div>

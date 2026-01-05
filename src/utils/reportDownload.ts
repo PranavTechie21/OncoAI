@@ -410,3 +410,12 @@ export function downloadReportAsJSON(data: PatientReportData) {
 
 
 
+
+
+
+
+
+
+
+
+

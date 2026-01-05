@@ -6,7 +6,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card } from "@/components/ui/card";
 import { ThemeToggle } from "@/components/ThemeToggle";
-import { Mail, Lock, User, AlertCircle, ArrowLeft, Building2, Phone, Shield, Stethoscope } from "lucide-react";
+import { Mail, Lock, User, AlertCircle, ArrowLeft, Building2, Phone, Shield, Stethoscope, Edit2 } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { toast } from "sonner";
 import { apiService } from "@/services/api";
@@ -70,6 +70,10 @@ export default function Signup() {
         setError("Please provide a contact phone number.");
         return false;
       }
+      if (!location) {
+        setError("Please provide a location.");
+        return false;
+      }
     }
     setError("");
     return true;
@@ -79,7 +83,21 @@ export default function Signup() {
     e.preventDefault();
     setError("");
 
-    if (!validateStep()) return;
+    // Only allow submission on step 4
+    if (step !== 4) {
+      return;
+    }
+
+    // Final validation before creating account
+    if (!name || !email || !password || !specialty || !license || !npi || !phone || !location) {
+      setError("Please fill in all required fields.");
+      return;
+    }
+
+    if (password !== confirmPassword) {
+      setError("Passwords do not match");
+      return;
+    }
 
     setLoading(true);
 
@@ -94,18 +112,25 @@ export default function Signup() {
         department,
         license,
         npi,
+        specialty,
+        subspecialty,
+        location,
       };
 
-      await apiService.register(name, email, password);
-      // Optional: profile extras via /auth/me after login can be added later.
+      await apiService.register(payload);
 
       toast.success("Account created successfully! Please sign in.");
       navigate("/login");
-    } catch (err) {
-      setError("An error occurred. Please try again.");
+    } catch (err: any) {
+      setError(err?.message || "An error occurred. Please try again.");
     } finally {
       setLoading(false);
     }
+  };
+
+  const handleEditStep = (stepNumber: number) => {
+    setStep(stepNumber);
+    setError("");
   };
 
   return (
@@ -165,7 +190,16 @@ export default function Signup() {
             </div>
           </div>
 
-          <form onSubmit={handleSubmit} className="space-y-6 mt-4">
+          <form 
+            onSubmit={(e) => {
+              e.preventDefault();
+              // Only allow submission from button click, not form submit
+              if (step === 4) {
+                handleSubmit(e);
+              }
+            }} 
+            className="space-y-6 mt-4"
+          >
             {error && (
               <Alert variant="destructive">
                 <AlertCircle className="h-4 w-4" />
@@ -313,7 +347,7 @@ export default function Signup() {
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold">3. Contact & institution</h2>
                 <p className="text-xs text-muted-foreground">
-                  Phone is required; other fields help personalize analytics but are optional.
+                  Phone and location are required; other fields help personalize analytics but are optional.
                 </p>
                 <div className="grid gap-4 md:grid-cols-2">
                   <div className="space-y-2 md:col-span-1">
@@ -354,13 +388,14 @@ export default function Signup() {
                     />
                   </div>
                   <div className="space-y-2 md:col-span-1">
-                    <Label htmlFor="location">Location (optional)</Label>
+                    <Label htmlFor="location">Location *</Label>
                     <Input
                       id="location"
                       placeholder="City, Country"
                       value={location}
                       onChange={(e) => setLocation(e.target.value)}
                       className="dark:bg-slate-900/50 dark:border-slate-700"
+                      required
                     />
                   </div>
                 </div>
@@ -371,53 +406,114 @@ export default function Signup() {
               <div className="space-y-4">
                 <h2 className="text-lg font-semibold">4. Review & create account</h2>
                 <p className="text-xs text-muted-foreground">
-                  Check that your details look correct before creating your OncoAi account.
+                  Review your details below. Click the edit icon to modify any information before creating your account.
                 </p>
-                <div className="grid gap-3 text-sm bg-muted/40 dark:bg-slate-900/40 p-4 rounded-xl">
+                <div className="grid gap-4 text-sm bg-muted/40 dark:bg-slate-900/40 p-6 rounded-xl">
+                  {/* Step 1: Account Details */}
+                  <div className="border-b border-border/50 pb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="font-semibold text-foreground">1. Account Details</p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditStep(1)}
+                        className="h-7 w-7 p-0"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Name:</span>
+                        <span className="font-medium text-foreground">{name || "Not set"}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Email:</span>
+                        <span className="font-medium text-foreground">{email || "Not set"}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Step 2: Professional Details */}
+                  <div className="border-b border-border/50 pb-3">
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="font-semibold text-foreground">2. Professional Details</p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditStep(2)}
+                        className="h-7 w-7 p-0"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Specialty:</span>
+                        <span className="font-medium text-foreground">{specialty || "Not set"}</span>
+                      </div>
+                      {subspecialty && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Subspecialty:</span>
+                          <span className="font-medium text-foreground">{subspecialty}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">License:</span>
+                        <span className="font-medium text-foreground">{license || "Not set"}</span>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">NPI:</span>
+                        <span className="font-medium text-foreground">{npi || "Not set"}</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Step 3: Contact & Institution */}
                   <div>
-                    <p className="font-medium">Name & Email</p>
-                    <p className="text-muted-foreground">{name} · {email}</p>
+                    <div className="flex items-center justify-between mb-2">
+                      <p className="font-semibold text-foreground">3. Contact & Institution</p>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => handleEditStep(3)}
+                        className="h-7 w-7 p-0"
+                      >
+                        <Edit2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                    <div className="space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Phone:</span>
+                        <span className="font-medium text-foreground">{phone || "Not set"}</span>
+                      </div>
+                      {institution && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Institution:</span>
+                          <span className="font-medium text-foreground">{institution}</span>
+                        </div>
+                      )}
+                      {department && (
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Department:</span>
+                          <span className="font-medium text-foreground">{department}</span>
+                        </div>
+                      )}
+                      <div className="flex items-center justify-between">
+                        <span className="text-muted-foreground">Location:</span>
+                        <span className="font-medium text-foreground">{location || "Not set"}</span>
+                      </div>
+                    </div>
                   </div>
-                  <div>
-                    <p className="font-medium">Specialty</p>
-                    <p className="text-muted-foreground">
-                      {specialty || "Not set"}{subspecialty ? ` • ${subspecialty}` : ""}
-                    </p>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-3">
-                    <div>
-                      <p className="font-medium">License</p>
-                      <p className="text-muted-foreground">{license || "Not set"}</p>
-                    </div>
-                    <div>
-                      <p className="font-medium">NPI</p>
-                      <p className="text-muted-foreground">{npi || "Not set"}</p>
-                    </div>
-                  </div>
-                  <div className="grid md:grid-cols-2 gap-3">
-                    <div>
-                      <p className="font-medium">Phone</p>
-                      <p className="text-muted-foreground">{phone || "Not set"}</p>
-                    </div>
-                    <div>
-                      <p className="font-medium">Institution</p>
-                      <p className="text-muted-foreground">
-                        {institution || "Not set"}{department ? ` • ${department}` : ""}
-                      </p>
-                    </div>
-                  </div>
-                  {location && (
-                    <div>
-                      <p className="font-medium">Location</p>
-                      <p className="text-muted-foreground">{location}</p>
-                    </div>
-                  )}
                 </div>
               </div>
             )}
 
             {/* Navigation buttons */}
-            <div className="flex items-center justify-between pt-2">
+            <div className="flex items-center justify-between pt-4">
               <Button
                 type="button"
                 variant="ghost"
@@ -441,7 +537,12 @@ export default function Signup() {
                   Next
                 </Button>
               ) : (
-                <Button type="submit" disabled={loading}>
+                <Button 
+                  type="button"
+                  onClick={handleSubmit}
+                  disabled={loading}
+                  className="w-full sm:w-auto"
+                >
                   {loading ? "Creating Account..." : "Create Account"}
                 </Button>
               )}

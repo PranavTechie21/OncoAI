@@ -19,6 +19,9 @@ import {
   Download
 } from "lucide-react";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
+import { ScrollAnimation, StaggerContainer, StaggerItem } from "@/components/ScrollAnimation";
+import { HoverCard } from "@/components/HoverCard";
+import { motion } from "framer-motion";
 
 // Patients will be loaded from the backend; state is created inside component
 
@@ -199,59 +202,91 @@ export default function Patients() {
                 </button>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-              <Card className="p-6 bg-card/50 backdrop-blur-sm shadow-lg dark:shadow-xl hover:shadow-2xl dark:hover:shadow-2xl transition-all duration-500 border border-border/50 dark:border-slate-700/50 group hover:-translate-y-2 hover:border-primary/50 dark:hover:border-primary/60 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-transparent dark:from-primary/30 dark:via-primary/20 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-500 shadow-lg">
-                      <Users className="h-7 w-7 text-primary" />
+            <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
+              <StaggerItem>
+                <HoverCard hoverScale={1.03}>
+                  <Card className="p-6 bg-card/50 backdrop-blur-sm shadow-lg dark:shadow-xl hover:shadow-2xl dark:hover:shadow-2xl transition-all duration-500 border border-border/50 dark:border-slate-700/50 group hover:-translate-y-2 hover:border-primary/50 dark:hover:border-primary/60 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    <div className="relative z-10">
+                      <div className="flex items-center justify-between mb-4">
+                        <motion.div
+                          whileHover={{ rotate: 360, scale: 1.1 }}
+                          transition={{ duration: 0.5 }}
+                          className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-transparent dark:from-primary/30 dark:via-primary/20 flex items-center justify-center shadow-lg"
+                        >
+                          <Users className="h-7 w-7 text-primary" />
+                        </motion.div>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">Total Patients</p>
+                      <p className="text-4xl font-bold text-foreground group-hover:text-primary transition-colors duration-300">{stats.total}</p>
                     </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-2">Total Patients</p>
-                  <p className="text-4xl font-bold text-foreground group-hover:text-primary transition-colors duration-300">{stats.total}</p>
-                </div>
-              </Card>
+                  </Card>
+                </HoverCard>
+              </StaggerItem>
 
-              <Card className="p-6 bg-card/50 backdrop-blur-sm shadow-lg dark:shadow-xl hover:shadow-2xl dark:hover:shadow-2xl transition-all duration-500 border border-border/50 dark:border-slate-700/50 group hover:-translate-y-2 hover:border-destructive/50 dark:hover:border-destructive/60 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-destructive/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-destructive/20 via-destructive/10 to-transparent dark:from-destructive/30 dark:via-destructive/20 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-500 shadow-lg">
-                      <AlertCircle className="h-7 w-7 text-destructive" />
+              <StaggerItem>
+                <HoverCard hoverScale={1.03}>
+                  <Card className="p-6 bg-card/50 backdrop-blur-sm shadow-lg dark:shadow-xl hover:shadow-2xl dark:hover:shadow-2xl transition-all duration-500 border border-border/50 dark:border-slate-700/50 group hover:-translate-y-2 hover:border-destructive/50 dark:hover:border-destructive/60 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-destructive/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    <div className="relative z-10">
+                      <div className="flex items-center justify-between mb-4">
+                        <motion.div
+                          whileHover={{ rotate: 360, scale: 1.1 }}
+                          transition={{ duration: 0.5 }}
+                          className="h-14 w-14 rounded-2xl bg-gradient-to-br from-destructive/20 via-destructive/10 to-transparent dark:from-destructive/30 dark:via-destructive/20 flex items-center justify-center shadow-lg"
+                        >
+                          <AlertCircle className="h-7 w-7 text-destructive" />
+                        </motion.div>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">High Risk</p>
+                      <p className="text-4xl font-bold text-foreground group-hover:text-destructive transition-colors duration-300">{stats.highRisk}</p>
                     </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-2">High Risk</p>
-                  <p className="text-4xl font-bold text-foreground group-hover:text-destructive transition-colors duration-300">{stats.highRisk}</p>
-                </div>
-              </Card>
+                  </Card>
+                </HoverCard>
+              </StaggerItem>
 
-              <Card className="p-6 bg-card/50 backdrop-blur-sm shadow-lg dark:shadow-xl hover:shadow-2xl dark:hover:shadow-2xl transition-all duration-500 border border-border/50 dark:border-slate-700/50 group hover:-translate-y-2 hover:border-success/50 dark:hover:border-success/60 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-success/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-success/20 via-success/10 to-transparent dark:from-success/30 dark:via-success/20 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-500 shadow-lg">
-                      <Activity className="h-7 w-7 text-success" />
+              <StaggerItem>
+                <HoverCard hoverScale={1.03}>
+                  <Card className="p-6 bg-card/50 backdrop-blur-sm shadow-lg dark:shadow-xl hover:shadow-2xl dark:hover:shadow-2xl transition-all duration-500 border border-border/50 dark:border-slate-700/50 group hover:-translate-y-2 hover:border-success/50 dark:hover:border-success/60 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-success/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    <div className="relative z-10">
+                      <div className="flex items-center justify-between mb-4">
+                        <motion.div
+                          whileHover={{ rotate: 360, scale: 1.1 }}
+                          transition={{ duration: 0.5 }}
+                          className="h-14 w-14 rounded-2xl bg-gradient-to-br from-success/20 via-success/10 to-transparent dark:from-success/30 dark:via-success/20 flex items-center justify-center shadow-lg"
+                        >
+                          <Activity className="h-7 w-7 text-success" />
+                        </motion.div>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">Active Treatment</p>
+                      <p className="text-4xl font-bold text-foreground group-hover:text-success transition-colors duration-300">{stats.activeTreatment}</p>
                     </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-2">Active Treatment</p>
-                  <p className="text-4xl font-bold text-foreground group-hover:text-success transition-colors duration-300">{stats.activeTreatment}</p>
-                </div>
-              </Card>
+                  </Card>
+                </HoverCard>
+              </StaggerItem>
 
-              <Card className="p-6 bg-card/50 backdrop-blur-sm shadow-lg dark:shadow-xl hover:shadow-2xl dark:hover:shadow-2xl transition-all duration-500 border border-border/50 dark:border-slate-700/50 group hover:-translate-y-2 hover:border-warning/50 dark:hover:border-warning/60 relative overflow-hidden">
-                <div className="absolute inset-0 bg-gradient-to-br from-warning/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                <div className="relative z-10">
-                  <div className="flex items-center justify-between mb-4">
-                    <div className="h-14 w-14 rounded-2xl bg-gradient-to-br from-warning/20 via-warning/10 to-transparent dark:from-warning/30 dark:via-warning/20 flex items-center justify-center group-hover:scale-110 group-hover:rotate-3 transition-all duration-500 shadow-lg">
-                      <TrendingUp className="h-7 w-7 text-warning" />
+              <StaggerItem>
+                <HoverCard hoverScale={1.03}>
+                  <Card className="p-6 bg-card/50 backdrop-blur-sm shadow-lg dark:shadow-xl hover:shadow-2xl dark:hover:shadow-2xl transition-all duration-500 border border-border/50 dark:border-slate-700/50 group hover:-translate-y-2 hover:border-warning/50 dark:hover:border-warning/60 relative overflow-hidden">
+                    <div className="absolute inset-0 bg-gradient-to-br from-warning/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
+                    <div className="relative z-10">
+                      <div className="flex items-center justify-between mb-4">
+                        <motion.div
+                          whileHover={{ rotate: 360, scale: 1.1 }}
+                          transition={{ duration: 0.5 }}
+                          className="h-14 w-14 rounded-2xl bg-gradient-to-br from-warning/20 via-warning/10 to-transparent dark:from-warning/30 dark:via-warning/20 flex items-center justify-center shadow-lg"
+                        >
+                          <TrendingUp className="h-7 w-7 text-warning" />
+                        </motion.div>
+                      </div>
+                      <p className="text-sm text-muted-foreground mb-2">Avg Risk Score</p>
+                      <p className="text-4xl font-bold text-foreground group-hover:text-warning transition-colors duration-300">{stats.avgRiskScore}%</p>
                     </div>
-                  </div>
-                  <p className="text-sm text-muted-foreground mb-2">Avg Risk Score</p>
-                  <p className="text-4xl font-bold text-foreground group-hover:text-warning transition-colors duration-300">{stats.avgRiskScore}%</p>
-                </div>
-              </Card>
-            </div>
+                  </Card>
+                </HoverCard>
+              </StaggerItem>
+            </StaggerContainer>
 
             {/* Charts Section */}
             <Tabs defaultValue="overview" className="mb-12">
