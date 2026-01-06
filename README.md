@@ -1,19 +1,12 @@
-<div align="center">
+<p align="center">
+  <img src="assets/OncoAI.png" alt="OncoAI Logo" height = "200" width="180" />
+</p>
+
+<h1 align="center">OncoAI — Personalized Cancer Treatment Planning Platform</h1>
 
 
-# 🏥 OncoAI
 
-### **Personalized Cancer Treatment Planning Platform**
-
-*AI-Powered Healthcare Solutions for Precision Medicine*
-
-[![React](https://img.shields.io/badge/React-18.3.1-61DAFB?logo=react&logoColor=white)](https://reactjs.org/)
-[![TypeScript](https://img.shields.io/badge/TypeScript-5.8.3-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
-[![Flask](https://img.shields.io/badge/Flask-3.0.0-000000?logo=flask&logoColor=white)](https://flask.palletsprojects.com/)
-[![Python](https://img.shields.io/badge/Python-3.8+-3776AB?logo=python&logoColor=white)](https://www.python.org/)
-[![License](https://img.shields.io/badge/License-Private-red)](LICENSE)
-
-[Demo Video](#-demo-video) • [Features](#-features) • [Installation](#-getting-started) • [Documentation](#-documentation) • [Contributing](#-contributing)
+> **An enterprise-grade, AI-powered clinical decision support system for precision oncology.**
 
 ---
 
@@ -33,56 +26,19 @@
 
 OncoAI is a cutting-edge, full-stack healthcare platform designed to revolutionize cancer treatment planning through artificial intelligence. Built with modern web technologies, it provides oncologists and healthcare professionals with intelligent tools for personalized patient care, treatment recommendations, and comprehensive clinical data management.
 
-### Key Highlights
+## Features
 
-- 🤖 **Advanced AI Integration** - Machine learning models for personalized treatment recommendations
-- 📊 **Real-time Analytics** - Comprehensive dashboards with interactive visualizations
-- 🔒 **Enterprise Security** - HIPAA-compliant architecture with JWT authentication
-- 🎨 **Modern UI/UX** - Beautiful, responsive design with dark mode support
-- ⚡ **High Performance** - Optimized for speed and scalability
+- 🤖 **AI-Powered Recommendations** - ML-driven personalized treatment suggestions with risk assessment
+- 🧠 **ML Model Integration** - Easy integration of your trained cancer treatment models
+- 📊 **Analytics & Reports** - Comprehensive patient data analysis and visualization
+- 👥 **Patient Management** - Complete patient records with clinical data storage
+- 📅 **Appointment Scheduling** - Manage patient appointments and follow-ups
+- 💬 **AI Chatbot** - Interactive assistant powered by OpenAI/Gemini
+- 📈 **Treatment Pathways** - Visualize patient-specific treatment protocols
+- 🎯 **Risk Assessment** - AI-calculated risk scores based on clinical factors
+- 🌓 **Dark Mode** - Beautiful dark and light themes
+- 🔐 **Authentication** - Secure JWT-based login and user management
 
----
-
-## ✨ Features
-
-### 🤖 AI-Powered Recommendations
-- ML-driven personalized treatment suggestions with confidence scoring
-- Risk assessment based on clinical factors and patient history
-- Treatment pathway visualization
-- Benefits and risk analysis for each recommendation
-
-### 👥 Patient Management
-- Comprehensive patient records with clinical data storage
-- Advanced search and filtering capabilities
-- Genomic profile analysis
-- Treatment history tracking
-- Risk score calculation and monitoring
-
-### 📊 Analytics & Reports
-- Interactive charts and data visualizations (Recharts)
-- Exportable reports in PDF and Excel formats
-- Custom date range filtering
-- Treatment outcome analysis
-- Real-time dashboard metrics
-
-### 📅 Appointment Scheduling
-- Intuitive calendar interface
-- Doctor assignment and management
-- Status tracking and notifications
-- Follow-up scheduling
-
-### 💬 AI Chatbot Assistant
-- Interactive healthcare assistant powered by OpenAI GPT-4o / Google Gemini
-- Context-aware responses
-- Treatment information queries
-- Clinical decision support
-
-### 🎯 Additional Features
-- **Dark Mode** - Beautiful dark and light themes
-- **Responsive Design** - Mobile-first approach
-- **Real-time Updates** - Live data synchronization
-- **Secure Authentication** - JWT-based user management
-- **Role-based Access** - Doctor and admin roles
 
 ---
 
@@ -115,6 +71,46 @@ OncoAI is a cutting-edge, full-stack healthcare platform designed to revolutioni
 | **SQLite/PostgreSQL** | - | Database |
 
 ---
+## Features Overview
+
+
+
+### Dashboard
+- Real-time analytics and metrics
+- Patient overview and trends
+- Quick actions and shortcuts
+
+### Patient Management
+- Comprehensive patient records
+- Risk score assessment
+- Treatment history tracking
+- Genomic profile analysis
+
+
+
+
+
+### AI Recommendations
+- Personalized treatment suggestions
+- Confidence scoring
+- Benefits and risk analysis
+- Priority-based filtering
+
+### Reports
+- Interactive charts and visualizations
+- Exportable reports (PDF, Excel)
+- Custom date ranges
+- Treatment outcome analysis
+
+
+
+
+
+### Appointments
+- Calendar view
+- Schedule management
+- Doctor assignment
+- Status tracking
 
 ## 🚀 Getting Started
 
@@ -162,10 +158,6 @@ pip install -r requirements.txt
 
 # Initialize database
 python -c "from app import app, db; app.app_context().push(); db.create_all()"
-
-# (Optional) Seed demo data
-python seed_demo_patients.py
-python seed_appointments.py
 
 # Start backend server
 python app.py
@@ -257,34 +249,6 @@ npm run dev
 
 ---
 
-## 📖 Documentation
-
-### API Endpoints
-
-#### Authentication
-- `POST /api/auth/register` - Register new user
-- `POST /api/auth/login` - Login user
-- `GET /api/auth/me` - Get current user
-
-#### Patients
-- `GET /api/patients` - Get all patients (requires auth)
-- `GET /api/patients/<id>` - Get patient by ID (requires auth)
-- `POST /api/patients` - Create new patient (requires auth)
-- `PUT /api/patients/<id>` - Update patient (requires auth)
-- `DELETE /api/patients/<id>` - Delete patient (requires auth)
-
-#### Recommendations
-- `GET /api/recommendations/patient/<id>` - Get AI recommendations for patient (requires auth)
-
-#### Reports
-- `GET /api/reports` - Get all reports (requires auth)
-- `POST /api/reports/patient/<id>` - Generate report for patient (requires auth)
-
-#### Appointments
-- `GET /api/appointments` - Get all appointments (requires auth)
-- `POST /api/appointments` - Create appointment (requires auth)
-- `PUT /api/appointments/<id>` - Update appointment (requires auth)
-- `DELETE /api/appointments/<id>` - Delete appointment (requires auth)
 
 ### Environment Variables
 
@@ -361,38 +325,28 @@ Contributions are welcome! Please follow these steps:
 - Write meaningful commit messages
 - Add comments for complex logic
 
----
 
-## 📝 License
 
-This project is **Private** - All rights reserved.
+## 🔮 Roadmap (Suggested Enhancements)
 
----
+* 🔬 Genomic variant interpretation (VCF support)
+* 🧠 Deep learning models for survival analysis
+* 📜 Clinical guideline alignment (NCCN / ESMO)
+* 🏥 Hospital EMR integration (FHIR-ready)
+* 🔒 HIPAA/GDPR compliance layer
+* ☁️ Cloud deployment (Docker + AWS/GCP)
 
-## 👥 Contact & Support
 
-- **Email**: contact@oncoai.com
-- **Phone**: +1 (555) 123-4567
-- **Address**: Medical Research Center
 
-For support, please open an issue in the repository or contact the development team.
+## 📄 License
 
----
+**Private / Proprietary**
+All rights reserved.
 
-## 🙏 Acknowledgments
 
-- Built with ❤️ for healthcare professionals
-- Powered by modern AI and machine learning technologies
-- Designed with accessibility and usability in mind
-
----
-
+> ⚠️ **Disclaimer**: OncoAI is a decision-support tool and not a replacement for professional medical judgment.
+>
+> 
 <div align="center">
 
 **Made with ❤️ by the OncoAI Team**
-
-*Transforming cancer care through artificial intelligence*
-
-[⬆ Back to Top](#-oncoai)
-
-</div>
