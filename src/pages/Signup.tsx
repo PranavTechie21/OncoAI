@@ -140,7 +140,7 @@ export default function Signup() {
         <div className="container flex h-16 items-center justify-between">
           <Link to="/" className="flex items-center gap-3 group">
             <img 
-              src="/OncoAI.png" 
+              src="/assets/OncoAI.png" 
               alt="OncoAI Logo" 
               className="h-14 w-14 object-contain transition-transform group-hover:scale-105 drop-shadow-lg brightness-110"
             />
@@ -164,7 +164,7 @@ export default function Signup() {
         <Card className="w-full max-w-xl p-8 shadow-card dark:shadow-2xl border-border/50 dark:bg-slate-800/50 dark:border-slate-700/50">
           <div className="flex flex-col items-center mb-8">
             <img 
-              src="/OncoAI.png" 
+              src="/assets/OncoAI.png" 
               alt="OncoAI Logo" 
               className="h-32 w-32 object-contain mb-6 drop-shadow-2xl brightness-110 filter"
               style={{ imageRendering: 'crisp-edges' }}

@@ -14,7 +14,7 @@ export function Footer() {
                 <div className="flex items-center gap-3">
                   <div className="rounded-lg bg-primary/10 dark:bg-primary/20 p-2 border border-primary/20">
                     <img 
-                      src="/OncoAI.png" 
+                      src="/assets/OncoAI.png" 
                       alt="OncoAI Logo" 
                       className="h-10 w-10 object-contain drop-shadow-lg brightness-110"
                     />

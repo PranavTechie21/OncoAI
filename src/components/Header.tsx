@@ -44,7 +44,7 @@ export function Header() {
         {/* Logo */}
         <Link to="/" className="flex items-center gap-3 group">
           <img 
-            src="/OncoAI.png" 
+            src="/assets/OncoAI.png" 
             alt="OncoAI Logo" 
             className="h-18 w-14 object-contain transition-transform group-hover:scale-105 drop-shadow-lg brightness-110"
           />
