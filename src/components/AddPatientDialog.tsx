@@ -12,7 +12,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
-import { Plus } from "lucide-react";
+import { Plus, Camera, User } from "lucide-react";
 import { toast } from "sonner";
 import { CheckCircle2 } from "lucide-react";
 import { apiService } from "@/services/api";
@@ -34,6 +34,7 @@ export function AddPatientDialog() {
     stage: "",
     diagnosisDate: "",
     notes: "",
+    avatar_url: "",
   });
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [touched, setTouched] = useState<Record<string, boolean>>({});
@@ -136,6 +137,7 @@ export function AddPatientDialog() {
         cancer_subtype: formData.cancerSubtype || undefined,
         stage: stageValue,
         diagnosis_date: formData.diagnosisDate,
+        avatar_url: formData.avatar_url || undefined,
         clinical_data: {
           notes: formData.notes,
         },
@@ -161,6 +163,7 @@ export function AddPatientDialog() {
         stage: "",
         diagnosisDate: "",
         notes: "",
+        avatar_url: "",
       });
       setErrors({});
       setTouched({});
@@ -188,6 +191,21 @@ export function AddPatientDialog() {
     }
   };
 
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (file) {
+      if (file.size > 2 * 1024 * 1024) {
+        toast.error("Image too large. Please select an image under 2MB.");
+        return;
+      }
+      const reader = new FileReader();
+      reader.onloadend = () => {
+        setFormData({ ...formData, avatar_url: reader.result as string });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
   return (
     <Dialog open={open} onOpenChange={setOpen}>
       <DialogTrigger asChild>
@@ -204,6 +222,24 @@ export function AddPatientDialog() {
           </DialogDescription>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {/* Avatar Upload Selection */}
+          <div className="flex flex-col items-center justify-center p-4 border-2 border-dashed border-slate-200 dark:border-white/10 rounded-2xl bg-slate-50/50 dark:bg-white/5 transition-colors hover:bg-slate-50 dark:hover:bg-white/10 group">
+            <div className="relative">
+              <div className="h-20 w-20 rounded-full bg-slate-200 dark:bg-slate-800 flex items-center justify-center overflow-hidden border-2 border-white dark:border-white/10 shadow-sm">
+                {formData.avatar_url ? (
+                  <img src={formData.avatar_url} alt="Preview" className="h-full w-full object-cover" />
+                ) : (
+                  <User className="h-10 w-10 text-slate-400" />
+                )}
+              </div>
+              <label htmlFor="avatar-upload" className="absolute -bottom-1 -right-1 h-8 w-8 bg-primary text-white rounded-full flex items-center justify-center cursor-pointer shadow-lg hover:scale-110 transition-transform">
+                <Camera className="h-4 w-4" />
+                <input id="avatar-upload" type="file" accept="image/*" className="hidden" onChange={handleFileChange} />
+              </label>
+            </div>
+            <p className="mt-2 text-[10px] font-bold uppercase tracking-widest text-slate-400 group-hover:text-primary transition-colors">Select Patient Photo</p>
+          </div>
+
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
               <Label htmlFor="name" className={errors.name ? "text-red-500" : ""}>
