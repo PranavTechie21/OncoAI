@@ -46,7 +46,7 @@ const App = () => (
       <QueryClientProvider client={queryClient}>
         <TooltipProvider>
           <Toaster />
-          <Sonner />
+          <Sonner position="bottom-right" richColors expand visibleToasts={6} />
           <BrowserRouter
             future={{
               v7_startTransition: true,
