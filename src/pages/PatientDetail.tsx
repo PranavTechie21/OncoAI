@@ -26,8 +26,11 @@ import {
   Brain,
   Sparkles,
   Camera,
-  Upload
+  Upload,
+  X,
+  Maximize2
 } from "lucide-react";
+import { motion, AnimatePresence } from "framer-motion";
 import { AIRecommendationsPanel } from "@/components/AIRecommendationsPanel";
 import { OutcomeTrackingTab } from "@/components/OutcomeTrackingTab";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
@@ -67,6 +70,8 @@ export default function PatientDetail() {
     status: "",
     diagnosis_date: "",
   });
+
+  const [isImageEnlarged, setIsImageEnlarged] = useState(false);
 
   const getRiskLevel = (score: number) => {
     if (score <= 50) return { label: "Low", color: "success", bgClass: "bg-success", textClass: "text-success", borderClass: "border-success/20", bgLightClass: "bg-success/10" };
@@ -287,7 +292,10 @@ export default function PatientDetail() {
             
             <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
               <div className="relative group">
-                <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-card shadow-lg relative bg-muted flex items-center justify-center">
+                <div 
+                  className="w-24 h-24 rounded-full overflow-hidden border-4 border-card shadow-lg relative bg-muted flex items-center justify-center cursor-zoom-in hover:border-primary/50 transition-all"
+                  onClick={() => setIsImageEnlarged(true)}
+                >
                   {patientData?.avatar_url || patientData?.avatarUrl ? (
                     <img 
                       src={patientData?.avatar_url || patientData?.avatarUrl} 
@@ -298,23 +306,29 @@ export default function PatientDetail() {
                     <User className="w-12 h-12 text-muted-foreground" />
                   )}
                   
-                  {/* Upload Overlay */}
-                  <label 
-                    htmlFor="photo-upload" 
-                    className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
-                  >
-                    <Camera className="h-6 w-6 text-white mb-1" />
-                    <span className="text-[10px] text-white font-bold uppercase tracking-tighter">Upload</span>
-                    <input 
-                      id="photo-upload" 
-                      type="file" 
-                      accept="image/*" 
-                      className="hidden" 
-                      onChange={handlePhotoUpload}
-                      disabled={saving}
-                    />
-                  </label>
+                  {/* Photo Overlay on hover */}
+                  <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center">
+                    <Maximize2 className="h-6 w-6 text-white" />
+                  </div>
                 </div>
+
+                {/* Dedicated Upload Button (No longer just on hover) */}
+                <label 
+                  htmlFor="photo-upload-direct" 
+                  className="absolute -bottom-1 -left-1 h-8 w-8 bg-white dark:bg-slate-900 border-2 border-border rounded-full flex items-center justify-center cursor-pointer shadow-md hover:scale-110 hover:text-primary transition-all z-10"
+                  title="Upload New Photo"
+                >
+                  <Camera className="h-4 w-4" />
+                  <input 
+                    id="photo-upload-direct" 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={handlePhotoUpload}
+                    disabled={saving}
+                  />
+                </label>
+
                 {/* Status Indicator (replacing the green icon with a sharper status ring) */}
                 <div className={`absolute -bottom-1 -right-1 h-6 w-6 rounded-full ${riskLevel.bgClass} border-2 border-card flex items-center justify-center`}>
                    <div className="h-2 w-2 rounded-full bg-white opacity-40 animate-pulse" />
@@ -745,6 +759,84 @@ export default function PatientDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Patient Photo Lightbox */}
+      <AnimatePresence>
+        {isImageEnlarged && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/90 backdrop-blur-md p-4 md:p-10"
+            onClick={() => setIsImageEnlarged(false)}
+          >
+            <motion.div 
+              initial={{ scale: 0.9, y: 20 }}
+              animate={{ scale: 1, y: 0 }}
+              exit={{ scale: 0.9, y: 20 }}
+              className="relative max-w-5xl w-full bg-card rounded-3xl overflow-hidden shadow-[0_0_100px_rgba(0,0,0,0.5)] flex flex-col md:flex-row border border-white/10"
+              onClick={(e) => e.stopPropagation()}
+            >
+              {/* Image Container */}
+              <div className="flex-1 bg-muted flex items-center justify-center min-h-[300px] md:min-h-[500px]">
+                {patientData?.avatar_url || patientData?.avatarUrl ? (
+                  <img 
+                    src={patientData?.avatar_url || patientData?.avatarUrl} 
+                    alt={patientData?.name}
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <User className="w-32 h-32 text-muted-foreground/20" />
+                )}
+              </div>
+
+              {/* Right Box (Clinical Info) */}
+              <div className="w-full md:w-80 bg-slate-900 border-l border-white/5 p-8 flex flex-col">
+                <div className="flex justify-between items-start mb-8">
+                  <div>
+                    <h2 className="text-2xl font-bold text-white mb-1">{patientData?.name}</h2>
+                    <Badge className={`${riskLevel.bgLightClass} ${riskLevel.textClass} border-none`}>
+                      {riskLevel.label} Priority
+                    </Badge>
+                  </div>
+                  <Button 
+                    variant="ghost" 
+                    size="icon" 
+                    className="text-white/40 hover:text-white hover:bg-white/10 -mt-2 -mr-2"
+                    onClick={() => setIsImageEnlarged(false)}
+                  >
+                    <X className="h-6 w-6" />
+                  </Button>
+                </div>
+
+                <div className="space-y-6">
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500">ID Verification</p>
+                    <p className="text-sm text-slate-300 font-mono">ONC-{patientData?.id?.toString().padStart(6, '0')}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500">Cancer Profile</p>
+                    <p className="text-sm text-slate-300">{patientData?.cancer_type || patientData?.cancerType}</p>
+                  </div>
+                  <div className="space-y-1">
+                    <p className="text-[10px] font-bold uppercase tracking-[0.2em] text-emerald-500">Clinical Status</p>
+                    <div className="flex items-center gap-2 mt-1">
+                      <div className={`h-2 w-2 rounded-full ${riskLevel.bgClass} animate-pulse`} />
+                      <p className="text-sm text-slate-100 font-semibold">{patientData?.status || 'Active'}</p>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="mt-auto pt-8 border-t border-white/5">
+                  <p className="text-[10px] text-white/30 leading-relaxed italic">
+                    Certified biometric visual for clinical identification only. AI Risk recalculation active.
+                  </p>
+                </div>
+              </div>
+            </motion.div>
+          </motion.div>
+        )}
+      </AnimatePresence>
     </div>
   );
 }
