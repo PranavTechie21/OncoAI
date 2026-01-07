@@ -1,123 +1,346 @@
-import { useState, useMemo, useEffect } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { motion, AnimatePresence, LayoutGroup } from "framer-motion";
 import { Header } from "@/components/Header";
 import { Footer } from "@/components/Footer";
-import { PatientCard } from "@/components/PatientCard";
-import { SearchFilters } from "@/components/SearchFilters";
-import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
 import { 
-  Users, 
-  TrendingUp, 
+  Sparkles,
   AlertCircle, 
   Activity,
-  Calendar,
-  FileText,
-  BarChart3,
-  Sparkles,
-  Download
+  Filter,
+  RefreshCw,
 } from "lucide-react";
-import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer, PieChart, Pie, Cell } from "recharts";
-import { ScrollAnimation, StaggerContainer, StaggerItem } from "@/components/ScrollAnimation";
-import { HoverCard } from "@/components/HoverCard";
-import { motion } from "framer-motion";
 
-// Patients will be loaded from the backend; state is created inside component
+type Patient = {
+  id: string | number;
+  name: string;
+  age?: number;
+  cancerType?: string;
+  cancerSubtype?: string;
+  riskScore: number;
+  diagnosisDate?: string;
+  stage?: string;
+  lastVisit?: string;
+  status?: string;
+  raw?: any;
+};
+
+type RiskBand = "low" | "medium" | "high";
+
+function getRiskBand(score: number): RiskBand {
+  if (score <= 50) return "low";
+  if (score <= 75) return "medium";
+  return "high";
+}
+
+function getStatusTone(status?: string) {
+  const normalized = (status || "").toLowerCase();
+  if (!normalized) return "idle";
+  if (normalized.includes("active")) return "active";
+  if (normalized.includes("surveillance") || normalized.includes("follow")) {
+    return "watch";
+  }
+  if (normalized.includes("completed") || normalized.includes("remission")) {
+    return "stable";
+  }
+  return "idle";
+}
+
+// Map patient attributes into a polar / spatial coordinate
+function computePosition(index: number, total: number, patient: Patient) {
+  const risk = Math.min(Math.max(patient.riskScore || 0, 0), 100);
+  const band = getRiskBand(risk);
+
+  // Angle: group by cancer type / index to create constellation arcs
+  const angle = (index / Math.max(total, 1)) * Math.PI * 1.8 - Math.PI * 0.9;
+
+  // Radius: high risk pulled closer to center
+  const baseRadius = 0.18; // 18% of field radius
+  const radius =
+    baseRadius +
+    (1 - risk / 100) * 0.45 + // lower risk pushed out
+    (band === "high" ? 0.02 : band === "medium" ? 0.06 : 0.1);
+
+  const x = 50 + Math.cos(angle) * radius * 100;
+  const y = 50 + Math.sin(angle) * radius * 70; // slightly squashed ellipse
+
+  return { x, y };
+}
+
+function getNodeSize(patient: Patient) {
+  const risk = Math.min(Math.max(patient.riskScore || 0, 0), 100);
+  const band = getRiskBand(risk);
+  const base = band === "high" ? 42 : band === "medium" ? 32 : 26;
+
+  // Nudge size by recency (if available)
+  const createdAt =
+    patient.raw?.created_at ||
+    patient.raw?.diagnosis_date ||
+    patient.diagnosisDate;
+  let recencyBoost = 0;
+  if (createdAt) {
+    const d = new Date(createdAt as string);
+    const daysAgo = (Date.now() - d.getTime()) / (1000 * 60 * 60 * 24);
+    if (!Number.isNaN(daysAgo)) {
+      if (daysAgo < 7) recencyBoost = 8;
+      else if (daysAgo < 30) recencyBoost = 4;
+      else if (daysAgo < 90) recencyBoost = 2;
+    }
+  }
+
+  return base + recencyBoost;
+}
+
+function getPulseProps(patient: Patient) {
+  const risk = Math.min(Math.max(patient.riskScore || 0, 0), 100);
+  const band = getRiskBand(risk);
+  const statusTone = getStatusTone(patient.status);
+
+  let duration = 2.4;
+  let scale = 1.04;
+  let opacity = 0.4;
+
+  if (band === "high") {
+    duration = 1.6;
+    scale = 1.12;
+    opacity = 0.75;
+  } else if (band === "medium") {
+    duration = 2.0;
+    scale = 1.08;
+    opacity = 0.55;
+  }
+
+  if (statusTone === "active") {
+    duration *= 0.8;
+    scale += 0.04;
+  } else if (statusTone === "idle") {
+    duration *= 1.1;
+    opacity *= 0.9;
+  }
+
+  return { duration, scale, opacity };
+}
+
+function getBandColor(band: RiskBand) {
+  switch (band) {
+    case "low":
+      return "from-emerald-400/40 via-emerald-300/20 to-transparent";
+    case "medium":
+      return "from-amber-400/60 via-amber-300/15 to-transparent";
+    case "high":
+      return "from-rose-500/80 via-rose-400/20 to-transparent";
+    default:
+      return "from-slate-400/40 via-slate-300/15 to-transparent";
+  }
+}
+
+function getBandStroke(band: RiskBand) {
+  switch (band) {
+    case "low":
+      return "#34d399";
+    case "medium":
+      return "#fbbf24";
+    case "high":
+      return "#fb7185";
+    default:
+      return "#64748b";
+  }
+}
+
+function buildExplanation(patient: Patient): string {
+  const pieces: string[] = [];
+  const riskBand = getRiskBand(patient.riskScore);
+  if (riskBand === "high") {
+    pieces.push("Prioritized due to elevated composite risk.");
+  } else if (riskBand === "medium") {
+    pieces.push("Moderate risk profile under active AI surveillance.");
+  } else {
+    pieces.push("Low-risk trajectory with stable indicators.");
+  }
+
+  if (patient.cancerType) {
+    pieces.push(`Cancer type: ${patient.cancerType}`);
+  }
+  if (patient.cancerSubtype) {
+    pieces.push(`Subtype signal: ${patient.cancerSubtype}`);
+  }
+  if (patient.stage) {
+    pieces.push(`Stage influence: ${patient.stage}`);
+  }
+  if (patient.status) {
+    pieces.push(`Current treatment state: ${patient.status}`);
+  }
+
+  return pieces.join(" · ");
+}
+
+type PatientOrbProps = {
+  patient: Patient;
+  index: number;
+  total: number;
+  isFocused: boolean;
+  isHovered: boolean;
+  onHover: () => void;
+  onBlur: () => void;
+  onSelect: () => void;
+};
+
+function PatientOrb({
+  patient,
+  index,
+  total,
+  isFocused,
+  isHovered,
+  onHover,
+  onBlur,
+  onSelect,
+}: PatientOrbProps) {
+  const riskBand = getRiskBand(patient.riskScore);
+  const { x, y } = computePosition(index, total, patient);
+  const size = getNodeSize(patient);
+  const { duration } = getPulseProps(patient);
+
+  const statusTone = getStatusTone(patient.status);
+
+  // Advanced glow colors
+  const coreColor = riskBand === "high" ? "#fb7185" : riskBand === "medium" ? "#fbbf24" : "#34d399";
+  const glowShadow = riskBand === "high" 
+    ? "shadow-[0_0_50px_rgba(248,113,113,0.4)]" 
+    : riskBand === "medium" 
+    ? "shadow-[0_0_40px_rgba(251,191,36,0.3)]" 
+    : "shadow-[0_0_35px_rgba(52,211,153,0.3)]";
+
+  return (
+    <motion.button
+      type="button"
+      layout
+      onMouseEnter={onHover}
+      onMouseLeave={onBlur}
+      onClick={onSelect}
+      className="absolute -translate-x-1/2 -translate-y-1/2 focus:outline-none z-30"
+      style={{ left: `${x}%`, top: `${y}%` }}
+      whileHover={{ scale: 1.15, zIndex: 50 }}
+      animate={{ 
+        y: [0, -4, 0],
+        transition: { duration: 4 + Math.random() * 2, repeat: Infinity, ease: "easeInOut" }
+      }}
+    >
+      <div className={`relative group transition-all duration-500 ${isFocused ? "scale-110" : ""}`}>
+        {/* Holographic Sphere Base */}
+        <div 
+          className={`relative rounded-full backdrop-blur-md border border-white/30 dark:border-white/10 overflow-hidden flex items-center justify-center ${glowShadow}`}
+          style={{ 
+            width: size + 12, 
+            height: size + 12,
+            background: `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.4), rgba(255,255,255,0.05))`
+          }}
+        >
+          {/* Internal Micro-UI (shimmering lines) */}
+          <div className="absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity">
+            <div className="absolute top-1/2 left-0 w-full h-[1px] bg-white transform -rotate-45" />
+            <div className="absolute top-1/4 left-0 w-full h-[1px] bg-white transform rotate-12" />
+          </div>
+
+          {/* SVG Data Elements */}
+          <svg viewBox="0 0 100 100" className="w-full h-full p-2">
+             <motion.circle 
+               cx="50" cy="50" r="40" 
+               fill="none" 
+               stroke={coreColor} 
+               strokeWidth="1" 
+               strokeDasharray="4 4"
+               animate={{ rotate: 360 }}
+               transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+             />
+             <motion.circle 
+                cx="50" cy="50" r="30" 
+                fill="none" 
+                stroke={coreColor} 
+                strokeWidth="2" 
+                strokeDasharray={`${patient.riskScore} ${100-patient.riskScore}`}
+                strokeLinecap="round"
+             />
+             <circle cx="50" cy="50" r="8" fill={coreColor} className="shadow-lg" />
+          </svg>
+
+          {/* Glint effect */}
+          <div className="absolute top-1 left-2 w-1/2 h-1/2 bg-white/20 rounded-full blur-[2px] pointer-events-none" />
+        </div>
+
+        {/* Floating Label with Glassmorphism */}
+        <div className={`absolute left-1/2 -bottom-2 -translate-x-1/2 translate-y-full px-3 py-1.5 rounded-xl border border-white/20 bg-slate-900/40 dark:bg-slate-950/60 backdrop-blur-xl transition-all duration-300 pointer-events-none whitespace-nowrap ${isHovered || isFocused ? "opacity-100 scale-100" : "opacity-0 scale-90"}`}>
+           <div className="flex flex-col items-center gap-0.5">
+              <span className="text-[11px] font-bold text-white tracking-wide">{patient.name}</span>
+              <div className="flex items-center gap-2">
+                 <span className="text-[9px] uppercase font-bold text-emerald-400">{patient.cancerType || "Systemic"}</span>
+                 <span className="text-[9px] text-white/50">ID: {String(patient.id).slice(0,4)}</span>
+              </div>
+           </div>
+        </div>
+      </div>
+    </motion.button>
+  );
+}
 
 export default function Patients() {
   const [searchQuery, setSearchQuery] = useState("");
-  const [cancerType, setCancerType] = useState("All Types");
-  const [riskLevel, setRiskLevel] = useState("All Levels");
-  const [patientsData, setPatientsData] = useState<any[]>([]);
+  const [riskLevel, setRiskLevel] = useState<"All" | "Low" | "Medium" | "High">(
+    "All"
+  );
+  const [patientsData, setPatientsData] = useState<Patient[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState<boolean>(true);
+  const [focusedId, setFocusedId] = useState<string | number | null>(null);
+  const [hoveredId, setHoveredId] = useState<string | number | null>(null);
+  const [cancerTypeFilter, setCancerTypeFilter] = useState<string>("All Types");
+
+  const navigate = useNavigate();
 
   const filteredPatients = useMemo(() => {
     return patientsData.filter((patient) => {
       const matchesSearch = patient.name
         .toLowerCase()
         .includes(searchQuery.toLowerCase());
-      const matchesCancerType =
-        cancerType === "All Types" || patient.cancerType === cancerType;
-      let matchesRiskLevel = true;
-      if (riskLevel === "Low Risk") {
-        matchesRiskLevel = patient.riskScore <= 50;
-      } else if (riskLevel === "Medium Risk") {
-        matchesRiskLevel = patient.riskScore > 50 && patient.riskScore <= 75;
-      } else if (riskLevel === "High Risk") {
-        matchesRiskLevel = patient.riskScore > 75;
-      }
-      return matchesSearch && matchesCancerType && matchesRiskLevel;
-    });
-  }, [searchQuery, cancerType, riskLevel, patientsData]);
 
-  const stats = useMemo(() => {
-    const total = patientsData.length;
-    const highRisk = patientsData.filter((p) => (p.risk_score ?? p.riskScore) > 75).length;
-    const activeTreatment = patientsData.filter((p) => p.status === "Active Treatment").length;
-    const avgRiskScore = total ? Math.round(patientsData.reduce((sum, p) => sum + (p.risk_score ?? p.riskScore), 0) / total) : 0;
-    return { total, highRisk, activeTreatment, avgRiskScore };
+      const matchesRisk =
+        riskLevel === "All"
+          ? true
+          : riskLevel === "Low"
+          ? getRiskBand(patient.riskScore) === "low"
+          : riskLevel === "Medium"
+          ? getRiskBand(patient.riskScore) === "medium"
+          : getRiskBand(patient.riskScore) === "high";
+
+      const matchesType =
+        cancerTypeFilter === "All Types" ||
+        (patient.cancerType || "").toLowerCase() ===
+          cancerTypeFilter.toLowerCase();
+
+      return matchesSearch && matchesRisk && matchesType;
+    });
+  }, [patientsData, searchQuery, riskLevel, cancerTypeFilter]);
+
+  // Derive simple global intensity signal
+  const overallLoad = useMemo(() => {
+    if (!patientsData.length) return "calm";
+    const high = patientsData.filter(
+      (p) => getRiskBand(p.riskScore) === "high"
+    ).length;
+    const ratio = high / patientsData.length;
+    if (ratio > 0.4) return "critical";
+    if (ratio > 0.2) return "elevated";
+    return "calm";
   }, [patientsData]);
 
-  // Derived chart data
-  const cancerTypeData = useMemo(() => {
-    const map: Record<string, number> = {};
+  const cancerTypes = useMemo(() => {
+    const set = new Set<string>();
     patientsData.forEach((p) => {
-      const t = p.cancer_type || p.cancerType || 'Other';
-      map[t] = (map[t] || 0) + 1;
+      if (p.cancerType) set.add(p.cancerType);
     });
-    const colors = ["#ef4444", "#f59e0b", "#10b981", "#3b82f6", "#8b5cf6", "#ec4899", "#64748b"];
-    return Object.keys(map).map((k, i) => ({ name: k, value: map[k], color: colors[i % colors.length] }));
+    return ["All Types", ...Array.from(set).sort()];
   }, [patientsData]);
-
-  const riskDistributionData = useMemo(() => {
-    const ranges = { '0-50%': 0, '51-75%': 0, '76-100%': 0 };
-    patientsData.forEach((p) => {
-      const score = p.risk_score ?? p.riskScore ?? 0;
-      if (score <= 50) ranges['0-50%']++;
-      else if (score <= 75) ranges['51-75%']++;
-      else ranges['76-100%']++;
-    });
-    return Object.keys(ranges).map((k) => ({ range: k, count: ranges[k as keyof typeof ranges] }));
-  }, [patientsData]);
-
-  const riskTrendData = useMemo(() => {
-    // Calculate actual trend from patient data grouped by month
-    const monthlyData: Record<string, { total: number; sum: number; month: string }> = {};
-    
-    patientsData.forEach((p) => {
-      const createdDate = p.raw?.created_at || p.raw?.diagnosis_date;
-      if (!createdDate) return;
-      
-      const date = new Date(createdDate);
-      const monthKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
-      const monthName = date.toLocaleDateString('en-US', { month: 'short' });
-      
-      if (!monthlyData[monthKey]) {
-        monthlyData[monthKey] = { total: 0, sum: 0, month: monthName };
-      }
-      monthlyData[monthKey].total += 1;
-      monthlyData[monthKey].sum += p.riskScore || 0;
-    });
-    
-    // Convert to array and calculate averages
-    const trend = Object.keys(monthlyData)
-      .sort()
-      .slice(-6) // Last 6 months
-      .map((key) => {
-        const data = monthlyData[key];
-        return {
-          month: data.month || key.split('-')[1],
-          value: data.total > 0 ? Math.round(data.sum / data.total) : stats.avgRiskScore,
-        };
-      });
-    
-    // If no data, show current average
-    return trend.length > 0 
-      ? trend 
-      : [{ month: new Date().toLocaleDateString('en-US', { month: 'short' }), value: stats.avgRiskScore }];
-  }, [patientsData, stats]);
 
   // Fetch patients once on mount and when manual refresh triggered
   const fetchPatients = async () => {
@@ -127,22 +350,17 @@ export default function Patients() {
       const api = (await import("@/services/api")).apiService;
       const resp = await api.getPatients();
       const list = resp?.patients || resp?.data?.patients || [];
-      // Normalize incoming fields to the expected camelCase used in UI where possible
-      const normalized = (list || []).map((p: any) => ({
+      const normalized: Patient[] = (list || []).map((p: any) => ({
         id: p.id,
         name: p.name,
         age: p.age,
         cancerType: p.cancer_type || p.cancerType,
         cancerSubtype: p.cancer_subtype || p.cancerSubtype,
         riskScore: Number(p.risk_score ?? p.riskScore ?? 0),
-        avatarUrl: p.avatar_url || p.avatarUrl || '',
         diagnosisDate: p.diagnosis_date || p.diagnosisDate,
         stage: p.stage,
         lastVisit: p.last_visit || p.lastVisit,
         status: p.status,
-        email: p.email,
-        phone: p.phone,
-        address: p.address,
         raw: p,
       }));
       setPatientsData(normalized);
@@ -157,312 +375,546 @@ export default function Patients() {
   useEffect(() => {
     let mounted = true;
     if (mounted) fetchPatients();
-    return () => { mounted = false; };
+    return () => {
+      mounted = false;
+    };
   }, []);
 
+  const focusedPatient =
+    filteredPatients.find((p) => p.id === focusedId) || filteredPatients[0];
+
+  const hoveredPatient = filteredPatients.find((p) => p.id === hoveredId);
+
+  const intensityGradient =
+    overallLoad === "critical"
+      ? "from-rose-100/40 via-background to-emerald-100/30 dark:from-rose-900/80 dark:via-slate-950 dark:to-emerald-900/40"
+      : overallLoad === "elevated"
+      ? "from-violet-100/40 via-background to-emerald-100/30 dark:from-violet-900/80 dark:via-slate-950 dark:to-emerald-900/40"
+      : "from-background via-background to-muted/40 dark:from-slate-950 dark:via-slate-950 dark:to-emerald-950/40";
+
   return (
-    <div className="min-h-screen flex flex-col bg-gradient-to-b from-background via-background to-muted/20 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+    <div className="min-h-screen flex flex-col bg-background text-foreground transition-colors">
       <Header />
       <main className="flex-1">
-        {/* Hero Section */}
-        <section className="relative overflow-hidden py-12 lg:py-16 bg-gradient-to-br from-primary/10 via-background to-success/10 dark:from-primary/20 dark:via-slate-950 dark:to-success/20 border-b border-border/50 dark:border-slate-800">
-          <div className="absolute inset-0 opacity-40 dark:opacity-30">
-            <div className="absolute top-20 right-20 w-96 h-96 bg-primary/20 dark:bg-primary/30 rounded-full blur-3xl animate-pulse" />
-            <div className="absolute bottom-10 left-20 w-80 h-80 bg-success/20 dark:bg-success/30 rounded-full blur-3xl animate-pulse delay-1000" />
+        {/* Hero: Patient Intelligence Space */}
+        <section className="relative overflow-hidden border-b border-border/70 bg-gradient-to-br from-white via-slate-50 to-slate-100 dark:from-slate-950 dark:via-slate-950 dark:to-slate-900">
+          <div className="absolute inset-0 pointer-events-none">
+            <div className="absolute -top-48 -left-32 h-96 w-96 bg-emerald-300/25 dark:bg-emerald-500/20 blur-3xl rounded-full" />
+            <div className="absolute -bottom-48 -right-16 h-[26rem] w-[26rem] bg-violet-300/25 dark:bg-violet-500/25 blur-3xl rounded-full" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_10%_0%,rgba(52,211,153,0.18),transparent_55%),radial-gradient(circle_at_80%_100%,rgba(129,140,248,0.28),transparent_60%)] opacity-80" />
+            <div className="absolute inset-x-0 bottom-0 h-px bg-gradient-to-r from-transparent via-foreground/10 to-transparent" />
           </div>
-          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_30%,rgba(120,119,198,0.1),transparent_50%)] dark:bg-[radial-gradient(circle_at_50%_30%,rgba(120,119,198,0.15),transparent_50%)]" />
-          <div className="container relative z-10">
-            <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-primary/10 dark:bg-primary/20 border border-primary/20 dark:border-primary/30 mb-4">
-              <Sparkles className="h-3 w-3 text-primary" />
-              <span className="text-xs font-semibold text-primary">Patient Management</span>
-            </div>
-            <h1 className="text-4xl md:text-5xl font-bold bg-gradient-to-r from-foreground via-primary to-foreground bg-clip-text text-transparent mb-3">
-              Patient Records
-            </h1>
-            <p className="text-lg text-muted-foreground max-w-2xl">
-              Comprehensive overview of all patients with advanced analytics and insights
-            </p>
-          </div>
-        </section>
 
-        {/* Stats Section */}
-        <section className="py-12">
-          <div className="container">
-            <div className="flex items-center justify-between gap-4 mb-6">
-              <div className="flex flex-col text-sm text-muted-foreground">
-                <span>Data updates only when you press Refresh.</span>
-                {error ? <span className="text-destructive">Error: {error}</span> : loading ? <span>Updating patient list...</span> : null}
-              </div>
-              <div>
-                <button
-                  className="inline-flex items-center px-3 py-2 rounded-md border border-border bg-card text-sm"
-                  onClick={() => fetchPatients()}
-                >
-                  Refresh
-                </button>
-              </div>
-            </div>
-            <StaggerContainer className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-              <StaggerItem>
-                <HoverCard hoverScale={1.03}>
-                  <Card className="p-6 bg-card/50 backdrop-blur-sm shadow-lg dark:shadow-xl hover:shadow-2xl dark:hover:shadow-2xl transition-all duration-500 border border-border/50 dark:border-slate-700/50 group hover:-translate-y-2 hover:border-primary/50 dark:hover:border-primary/60 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                    <div className="relative z-10">
-                      <div className="flex items-center justify-between mb-4">
-                        <motion.div
-                          whileHover={{ rotate: 360, scale: 1.1 }}
-                          transition={{ duration: 0.5 }}
-                          className="h-14 w-14 rounded-2xl bg-gradient-to-br from-primary/20 via-primary/10 to-transparent dark:from-primary/30 dark:via-primary/20 flex items-center justify-center shadow-lg"
-                        >
-                          <Users className="h-7 w-7 text-primary" />
-                        </motion.div>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-2">Total Patients</p>
-                      <p className="text-4xl font-bold text-foreground group-hover:text-primary transition-colors duration-300">{stats.total}</p>
-                    </div>
-                  </Card>
-                </HoverCard>
-              </StaggerItem>
-
-              <StaggerItem>
-                <HoverCard hoverScale={1.03}>
-                  <Card className="p-6 bg-card/50 backdrop-blur-sm shadow-lg dark:shadow-xl hover:shadow-2xl dark:hover:shadow-2xl transition-all duration-500 border border-border/50 dark:border-slate-700/50 group hover:-translate-y-2 hover:border-destructive/50 dark:hover:border-destructive/60 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-destructive/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                    <div className="relative z-10">
-                      <div className="flex items-center justify-between mb-4">
-                        <motion.div
-                          whileHover={{ rotate: 360, scale: 1.1 }}
-                          transition={{ duration: 0.5 }}
-                          className="h-14 w-14 rounded-2xl bg-gradient-to-br from-destructive/20 via-destructive/10 to-transparent dark:from-destructive/30 dark:via-destructive/20 flex items-center justify-center shadow-lg"
-                        >
-                          <AlertCircle className="h-7 w-7 text-destructive" />
-                        </motion.div>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-2">High Risk</p>
-                      <p className="text-4xl font-bold text-foreground group-hover:text-destructive transition-colors duration-300">{stats.highRisk}</p>
-                    </div>
-                  </Card>
-                </HoverCard>
-              </StaggerItem>
-
-              <StaggerItem>
-                <HoverCard hoverScale={1.03}>
-                  <Card className="p-6 bg-card/50 backdrop-blur-sm shadow-lg dark:shadow-xl hover:shadow-2xl dark:hover:shadow-2xl transition-all duration-500 border border-border/50 dark:border-slate-700/50 group hover:-translate-y-2 hover:border-success/50 dark:hover:border-success/60 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-success/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                    <div className="relative z-10">
-                      <div className="flex items-center justify-between mb-4">
-                        <motion.div
-                          whileHover={{ rotate: 360, scale: 1.1 }}
-                          transition={{ duration: 0.5 }}
-                          className="h-14 w-14 rounded-2xl bg-gradient-to-br from-success/20 via-success/10 to-transparent dark:from-success/30 dark:via-success/20 flex items-center justify-center shadow-lg"
-                        >
-                          <Activity className="h-7 w-7 text-success" />
-                        </motion.div>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-2">Active Treatment</p>
-                      <p className="text-4xl font-bold text-foreground group-hover:text-success transition-colors duration-300">{stats.activeTreatment}</p>
-                    </div>
-                  </Card>
-                </HoverCard>
-              </StaggerItem>
-
-              <StaggerItem>
-                <HoverCard hoverScale={1.03}>
-                  <Card className="p-6 bg-card/50 backdrop-blur-sm shadow-lg dark:shadow-xl hover:shadow-2xl dark:hover:shadow-2xl transition-all duration-500 border border-border/50 dark:border-slate-700/50 group hover:-translate-y-2 hover:border-warning/50 dark:hover:border-warning/60 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-warning/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                    <div className="relative z-10">
-                      <div className="flex items-center justify-between mb-4">
-                        <motion.div
-                          whileHover={{ rotate: 360, scale: 1.1 }}
-                          transition={{ duration: 0.5 }}
-                          className="h-14 w-14 rounded-2xl bg-gradient-to-br from-warning/20 via-warning/10 to-transparent dark:from-warning/30 dark:via-warning/20 flex items-center justify-center shadow-lg"
-                        >
-                          <TrendingUp className="h-7 w-7 text-warning" />
-                        </motion.div>
-                      </div>
-                      <p className="text-sm text-muted-foreground mb-2">Avg Risk Score</p>
-                      <p className="text-4xl font-bold text-foreground group-hover:text-warning transition-colors duration-300">{stats.avgRiskScore}%</p>
-                    </div>
-                  </Card>
-                </HoverCard>
-              </StaggerItem>
-            </StaggerContainer>
-
-            {/* Charts Section */}
-            <Tabs defaultValue="overview" className="mb-12">
-              <TabsList className="grid w-full grid-cols-3 bg-muted/50 dark:bg-slate-900/50 p-1 rounded-xl">
-                <TabsTrigger value="overview" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-lg transition-all duration-300">Overview</TabsTrigger>
-                <TabsTrigger value="distribution" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-lg transition-all duration-300">Distribution</TabsTrigger>
-                <TabsTrigger value="trends" className="rounded-lg data-[state=active]:bg-card data-[state=active]:shadow-lg transition-all duration-300">Trends</TabsTrigger>
-              </TabsList>
-              
-              <TabsContent value="overview" className="mt-8">
-                <div className="grid grid-cols-1 lg:grid-cols-2 gap-8">
-                  <Card className="p-8 bg-card/50 backdrop-blur-sm shadow-lg dark:shadow-xl hover:shadow-2xl transition-all duration-500 border border-border/50 dark:border-slate-700/50 group hover:-translate-y-1 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                    <div className="relative z-10">
-                      <h3 className="text-xl font-bold mb-6 flex items-center gap-2 group-hover:text-primary transition-colors duration-300">
-                        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 dark:from-primary/30 dark:to-primary/20 flex items-center justify-center">
-                          <BarChart3 className="h-5 w-5 text-primary" />
-                        </div>
-                        Cancer Type Distribution
-                      </h3>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <PieChart>
-                          <Pie
-                            data={cancerTypeData}
-                            cx="50%"
-                            cy="50%"
-                            labelLine={false}
-                            label={({ name, percent }) => `${name} ${(percent * 100).toFixed(0)}%`}
-                            outerRadius={90}
-                            fill="#8884d8"
-                            dataKey="value"
-                          >
-                            {cancerTypeData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} />
-                            ))}
-                          </Pie>
-                          <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                        </PieChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
-
-                  <Card className="p-8 bg-card/50 backdrop-blur-sm shadow-lg dark:shadow-xl hover:shadow-2xl transition-all duration-500 border border-border/50 dark:border-slate-700/50 group hover:-translate-y-1 relative overflow-hidden">
-                    <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                    <div className="relative z-10">
-                      <h3 className="text-xl font-bold mb-6 flex items-center gap-2 group-hover:text-primary transition-colors duration-300">
-                        <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 dark:from-primary/30 dark:to-primary/20 flex items-center justify-center">
-                          <TrendingUp className="h-5 w-5 text-primary" />
-                        </div>
-                        Risk Score Distribution
-                      </h3>
-                      <ResponsiveContainer width="100%" height={300}>
-                        <BarChart data={riskDistributionData}>
-                          <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                          <XAxis dataKey="range" className="text-sm" />
-                          <YAxis className="text-sm" />
-                          <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                          <Bar dataKey="count" fill="#3b82f6" radius={[8, 8, 0, 0]} />
-                        </BarChart>
-                      </ResponsiveContainer>
-                    </div>
-                  </Card>
-                </div>
-              </TabsContent>
-
-              <TabsContent value="distribution" className="mt-8">
-                <Card className="p-8 bg-card/50 backdrop-blur-sm shadow-lg dark:shadow-xl hover:shadow-2xl transition-all duration-500 border border-border/50 dark:border-slate-700/50 group hover:-translate-y-1 relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  <div className="relative z-10">
-                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2 group-hover:text-primary transition-colors duration-300">
-                      <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 dark:from-primary/30 dark:to-primary/20 flex items-center justify-center">
-                        <BarChart3 className="h-5 w-5 text-primary" />
-                      </div>
-                      Risk Level Distribution
-                    </h3>
-                    <ResponsiveContainer width="100%" height={400}>
-                      <BarChart data={riskDistributionData}>
-                        <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                        <XAxis dataKey="range" className="text-sm" />
-                        <YAxis className="text-sm" />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                        <Bar dataKey="count" fill="#3b82f6" radius={[8, 8, 0, 0]} />
-                      </BarChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Card>
-              </TabsContent>
-
-              <TabsContent value="trends" className="mt-8">
-                <Card className="p-8 bg-card/50 backdrop-blur-sm shadow-lg dark:shadow-xl hover:shadow-2xl transition-all duration-500 border border-border/50 dark:border-slate-700/50 group hover:-translate-y-1 relative overflow-hidden">
-                  <div className="absolute inset-0 bg-gradient-to-br from-primary/5 via-transparent to-transparent opacity-0 group-hover:opacity-100 transition-opacity duration-500" />
-                  <div className="relative z-10">
-                    <h3 className="text-xl font-bold mb-6 flex items-center gap-2 group-hover:text-primary transition-colors duration-300">
-                      <div className="h-10 w-10 rounded-xl bg-gradient-to-br from-primary/20 to-primary/10 dark:from-primary/30 dark:to-primary/20 flex items-center justify-center">
-                        <TrendingUp className="h-5 w-5 text-primary" />
-                      </div>
-                      Average Risk Score Trend
-                    </h3>
-                    <ResponsiveContainer width="100%" height={400}>
-                      <LineChart data={riskTrendData}>
-                        <defs>
-                          <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                            <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                            <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                          </linearGradient>
-                        </defs>
-                        <CartesianGrid strokeDasharray="3 3" className="opacity-30" />
-                        <XAxis dataKey="month" className="text-sm" />
-                        <YAxis className="text-sm" />
-                        <Tooltip contentStyle={{ backgroundColor: 'hsl(var(--card))', border: '1px solid hsl(var(--border))' }} />
-                        <Line type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={3} fill="url(#colorValue)" />
-                      </LineChart>
-                    </ResponsiveContainer>
-                  </div>
-                </Card>
-              </TabsContent>
-            </Tabs>
-          </div>
-        </section>
-
-        {/* Patients List Section */}
-        <section className="py-12 bg-gradient-to-b from-muted/10 to-background dark:from-slate-950/50 dark:to-slate-950">
-          <div className="container">
-            <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6 mb-8">
-              <div>
-                <h2 className="text-3xl font-bold text-foreground mb-2">All Patients</h2>
-                <p className="text-muted-foreground">Manage and monitor patient records</p>
-              </div>
-              <Button className="gap-2 shadow-lg hover:shadow-xl hover:scale-105 transition-all duration-300 group/btn">
-                <Download className="h-4 w-4 group-hover/btn:translate-y-0.5 transition-transform duration-300" />
-                Export Report
-              </Button>
+          <div className="relative z-10 container py-10 md:py-14 flex flex-col gap-6">
+            <div className="inline-flex items-center gap-2 self-start rounded-full border border-emerald-400/30 bg-emerald-400/15 px-3 py-1 backdrop-blur-md shadow-sm">
+              <Sparkles className="h-3.5 w-3.5 text-emerald-300" />
+              <span className="text-[11px] font-semibold tracking-wide text-emerald-800 dark:text-emerald-50 uppercase">
+                Patient Intelligence Space
+              </span>
             </div>
 
-            <SearchFilters
-              searchQuery={searchQuery}
-              setSearchQuery={setSearchQuery}
-              cancerType={cancerType}
-              setCancerType={setCancerType}
-              riskLevel={riskLevel}
-              setRiskLevel={setRiskLevel}
-            />
-
-            <div className="mt-6 flex items-center justify-between">
-              <p className="text-sm text-muted-foreground">
-                Showing <span className="font-semibold text-foreground">{filteredPatients.length}</span> of <span className="font-semibold text-foreground">{patientsData.length}</span> patients
+            <div className="max-w-3xl space-y-4">
+              <h1 className="text-3xl md:text-4xl lg:text-5xl font-semibold leading-tight">
+                <span className="bg-gradient-to-r from-slate-900 via-emerald-600 to-violet-600 dark:from-foreground dark:via-emerald-500 dark:to-violet-500 bg-clip-text text-transparent">
+                  An AI field monitoring patient lives in real time.
+                </span>
+              </h1>
+              <p className="text-sm md:text-base text-slate-600 dark:text-muted-foreground max-w-2xl bg-white/70 dark:bg-transparent rounded-2xl px-3 py-2 shadow-sm backdrop-blur">
+                Each point in this field represents a living clinical entity. Risk, treatment
+                status, and AI confidence shape their size, glow, and motion—so you see where
+                attention is needed{" "}
+                <span className="font-medium text-emerald-600 dark:text-emerald-200">
+                  before
+                </span>{" "}
+                it becomes urgent.
               </p>
             </div>
+          </div>
+        </section>
 
-            <div className="mt-8 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-6">
-                {filteredPatients.map((patient, index) => (
-                  <PatientCard
-                    key={patient.id}
-                    id={patient.id}
-                    name={patient.name}
-                    age={patient.age}
-                    cancerType={patient.cancerType}
-                    cancerSubtype={patient.cancerSubtype}
-                    riskScore={patient.riskScore}
-                    avatarUrl={patient.avatarUrl}
-                    index={index}
-                  />
-                ))}
+        {/* Spatial intelligence field */}
+        <section
+          className={`relative py-10 md:py-14 bg-gradient-to-b ${intensityGradient}`}
+        >
+          <div className="absolute inset-0 pointer-events-none">
+            {/* Neural grid background - Enhanced for Light Mode depth */}
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_0%_0%,rgba(148,163,184,0.15),transparent_60%),radial-gradient(circle_at_100%_100%,rgba(129,140,248,0.25),transparent_60%)] opacity-40 dark:opacity-30" />
+            <div className="absolute inset-6 rounded-[2.5rem] border border-slate-200/60 dark:border-border/50 bg-white/40 dark:bg-slate-950/40 backdrop-blur-3xl shadow-[0_40px_100px_rgba(15,23,42,0.08)] dark:shadow-[0_40px_120px_rgba(0,0,0,0.6)] overflow-hidden">
+               {/* Ambient floating data points - more visible in light mode */}
+               {[...Array(20)].map((_, i) => (
+                 <motion.div
+                    key={i}
+                    className="absolute h-1.5 w-1.5 rounded-full bg-emerald-500/20 dark:bg-emerald-400/10"
+                    initial={{ 
+                      x: Math.random() * 100 + "%", 
+                      y: Math.random() * 100 + "%",
+                      opacity: Math.random() * 0.6
+                    }}
+                    animate={{ 
+                      y: ["-5%", "105%"],
+                      opacity: [0, 0.5, 0]
+                    }}
+                    transition={{ 
+                      duration: 10 + Math.random() * 20, 
+                      repeat: Infinity, 
+                      ease: "linear",
+                      delay: Math.random() * 10
+                    }}
+                 />
+               ))}
             </div>
+          </div>
 
-            {filteredPatients.length === 0 && (
-              <div className="mt-12 text-center py-16 bg-card/50 backdrop-blur-sm rounded-2xl border border-border/50 shadow-lg">
-                <div className="inline-flex items-center justify-center h-16 w-16 rounded-2xl bg-muted/50 dark:bg-slate-800/50 mb-4">
-                  <Users className="h-8 w-8 text-muted-foreground" />
+          <div className="relative z-10 container">
+            <div className="flex flex-col lg:flex-row gap-8 lg:gap-10 items-stretch">
+              {/* Left: Field + filters */}
+              <div className="flex-1 flex flex-col gap-4 min-w-0">
+                {/* Filters morph the space instead of hiding rows */}
+                <div className="flex flex-wrap items-center gap-3 justify-between mb-1">
+                  <div className="flex flex-wrap gap-2 items-center text-xs">
+                    <span className="text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                      <Filter className="h-3.5 w-3.5" />
+                      AI lens:
+                    </span>
+                    <div className="inline-flex rounded-full bg-white/70 border border-slate-200 shadow-sm backdrop-blur-md p-1 dark:bg-slate-900/80 dark:border-slate-700/70">
+                      {["All", "Low", "Medium", "High"].map((label) => {
+                        const active = riskLevel === (label as any);
+                        return (
+                          <button
+                            key={label}
+                            type="button"
+                            onClick={() =>
+                              setRiskLevel(label as "All" | "Low" | "Medium" | "High")
+                            }
+                            className={[
+                              "px-2.5 py-1 rounded-full text-[11px] font-medium transition-all",
+                              active
+                                ? "bg-emerald-500/20 text-emerald-800 border border-emerald-400 shadow-[0_0_18px_rgba(52,211,153,0.35)] dark:text-emerald-50"
+                                : "text-slate-600 hover:text-slate-900 hover:bg-slate-100 dark:text-slate-300/80 dark:hover:text-slate-100 dark:hover:bg-slate-800/70",
+                            ].join(" ")}
+                          >
+                            {label === "All" ? "All risk bands" : `${label} risk`}
+                          </button>
+                        );
+                      })}
+                    </div>
+                  </div>
+
+                  <div className="flex flex-wrap items-center gap-2 ml-auto text-xs">
+                    <input
+                      value={searchQuery}
+                      onChange={(e) => setSearchQuery(e.target.value)}
+                      placeholder="Search by patient name"
+                      className="h-8 w-40 md:w-48 rounded-full border border-slate-200 bg-white/80 px-3 text-[11px] text-slate-900 placeholder:text-slate-400 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-emerald-400/70 dark:border-border/70 dark:bg-slate-950/80 dark:text-foreground dark:placeholder:text-muted-foreground"
+                    />
+                    <select
+                      value={cancerTypeFilter}
+                      onChange={(e) => setCancerTypeFilter(e.target.value)}
+                      className="h-8 rounded-full border border-slate-200 bg-white/80 px-3 pr-6 text-[11px] text-slate-900 shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-violet-400/70 dark:border-border/70 dark:bg-slate-950/80 dark:text-foreground"
+                    >
+                      {cancerTypes.map((t) => (
+                        <option key={t} value={t}>
+                          {t}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-8 px-3 rounded-full border-slate-200 bg-white/90 text-[11px] text-slate-800 hover:bg-white hover:border-emerald-400/60 gap-1 shadow-sm dark:border-border dark:bg-slate-900/80 dark:text-foreground"
+                      onClick={fetchPatients}
+                      disabled={loading}
+                    >
+                      <RefreshCw className="h-3.5 w-3.5" />
+                      <span className="hidden md:inline">
+                        {loading ? "Syncing…" : "Refresh"}
+                      </span>
+                    </Button>
+                  </div>
                 </div>
-                <p className="text-lg font-medium text-foreground mb-2">No patients found</p>
-                <p className="text-muted-foreground">
-                  Try adjusting your search criteria or filters
-                </p>
+
+                {/* Intelligence field */}
+                <LayoutGroup>
+                  <div className="relative mt-2 h-[520px] md:h-[580px] rounded-[2rem] border border-slate-200 bg-gradient-to-b from-white via-slate-50 to-slate-100 dark:from-slate-950/70 dark:via-slate-950/90 dark:to-slate-950/80 overflow-hidden shadow-[0_30px_90px_rgba(15,23,42,0.12)] dark:shadow-[0_40px_120px_rgba(0,0,0,0.85)]">
+                    {/* Multi-layer depth grid */}
+                    <div className="absolute inset-0 opacity-50 dark:opacity-40">
+                      <div className="absolute inset-8 rounded-[1.8rem] bg-[radial-gradient(circle_at_20%_0%,rgba(52,211,153,0.12),transparent_55%),radial-gradient(circle_at_80%_120%,rgba(129,140,248,0.16),transparent_60%)]" />
+                      <div className="absolute inset-6 rounded-[1.7rem] border border-slate-200/60 dark:border-border/20" />
+                    </div>
+
+                    {/* SVG Connection Layer - Real-time Data Threads */}
+                    <svg className="absolute inset-0 w-full h-full pointer-events-none overflow-visible">
+                      <defs>
+                         <linearGradient id="conn-grad" gradientUnits="userSpaceOnUse">
+                            <stop offset="0%" stopColor="#10b981" stopOpacity="0" />
+                            <stop offset="50%" stopColor="#10b981" stopOpacity="0.4" />
+                            <stop offset="100%" stopColor="#10b981" stopOpacity="0" />
+                         </linearGradient>
+                      </defs>
+                      {filteredPatients.map((p, i) => {
+                        const { x, y } = computePosition(i, filteredPatients.length, p);
+                        return (
+                          <g key={`line-${p.id}`}>
+                            <line 
+                              x1="50%" y1="50%" 
+                              x2={`${x}%`} y2={`${y}%`} 
+                              stroke="currentColor" 
+                              className="text-emerald-500/20 dark:text-emerald-400/10"
+                              strokeWidth="1.5"
+                            />
+                            {/* Animated data pulse */}
+                            <motion.circle
+                              r="2"
+                              fill="#10b981"
+                              animate={{ 
+                                cx: ["50%", `${x}%`],
+                                cy: ["50%", `${y}%`],
+                                opacity: [0, 0.8, 0]
+                              }}
+                              transition={{ 
+                                duration: 3 + Math.random() * 4,
+                                repeat: Infinity,
+                                ease: "linear",
+                                delay: Math.random() * 5
+                              }}
+                            />
+                          </g>
+                        );
+                      })}
+                    </svg>
+
+                    {/* Center radar nucleus - Enhanced for premium light mode crystal look */}
+                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+                      <div className="relative h-48 w-48 md:h-64 md:w-64">
+                        {/* Outer rotating rings */}
+                        {[...Array(3)].map((_, i) => (
+                           <motion.div
+                              key={i}
+                              className="absolute inset-0 rounded-full border border-emerald-500/30 dark:border-emerald-400/20 shadow-[0_0_20px_rgba(52,211,153,0.1)]"
+                              style={{ 
+                                rotateX: i * 60,
+                                rotateY: i * 30,
+                              }}
+                              animate={{ rotateZ: 360 }}
+                              transition={{ 
+                                duration: 20 + i * 10,
+                                repeat: Infinity,
+                                ease: "linear"
+                              }}
+                           />
+                        ))}
+                        
+                        {/* Shimmering glass core */}
+                        <div className="absolute inset-[15%] rounded-full bg-gradient-to-br from-white/80 via-white/40 to-emerald-50/20 dark:from-slate-800/40 dark:to-slate-900/10 border border-white/60 dark:border-white/20 backdrop-blur-2xl shadow-[0_20px_60px_rgba(16,185,129,0.15)] dark:shadow-[0_0_80px_rgba(16,185,129,0.2)]" />
+                        
+                        {/* Pulsing inner star */}
+                        <motion.div
+                          className="absolute inset-[35%] rounded-full bg-emerald-500 dark:bg-emerald-400"
+                          style={{ filter: "blur(25px)" }}
+                          animate={{ 
+                            scale: [1, 1.4, 1],
+                            opacity: [0.3, 0.7, 0.3]
+                          }}
+                          transition={{ 
+                            duration: 3,
+                            repeat: Infinity,
+                            ease: "easeInOut"
+                          }}
+                        />
+                        <div className="absolute inset-[42%] rounded-full bg-white dark:bg-emerald-50 shadow-[0_0_40px_rgba(16,185,129,0.5)] dark:shadow-[0_0_30px_#10b981]" />
+                      </div>
+                    </div>
+
+                    {/* Patient entities */}
+                    <div className="absolute inset-0 px-6 py-6 md:px-10 md:py-10">
+                      <AnimatePresence>
+                        {filteredPatients.map((patient, index) => (
+                          <PatientOrb
+                            key={patient.id}
+                            patient={patient}
+                            index={index}
+                            total={filteredPatients.length}
+                            isFocused={focusedPatient?.id === patient.id}
+                            isHovered={hoveredId === patient.id}
+                            onHover={() => setHoveredId(patient.id)}
+                            onBlur={() =>
+                              setHoveredId((prev) =>
+                                prev === patient.id ? null : prev
+                              )
+                            }
+                            onSelect={() => setFocusedId(patient.id)}
+                          />
+                        ))}
+                      </AnimatePresence>
+
+                      {filteredPatients.length === 0 && !loading && (
+                        <div className="absolute inset-0 flex flex-col items-center justify-center text-center gap-3 text-slate-300/80">
+                      <div className="inline-flex items-center justify-center h-12 w-12 rounded-2xl bg-white/80 border border-slate-200 shadow-sm dark:bg-slate-900/80 dark:border-slate-700/70">
+                            <Activity className="h-6 w-6 text-slate-400" />
+                    </div>
+                          <p className="text-sm font-medium">
+                            No entities match this AI lens.
+                          </p>
+                          <p className="text-xs text-slate-500 max-w-xs dark:text-slate-400">
+                            Adjust the risk band or search query to bring
+                            patients back into the field.
+                          </p>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Live stream status bar */}
+                    <div className="absolute inset-x-0 bottom-0 px-6 pb-4 pt-2 flex items-center justify-between text-[11px] text-muted-foreground bg-gradient-to-t from-background/90 via-background/70 to-transparent dark:from-slate-950/90 dark:via-slate-950/70">
+                      <div className="inline-flex items-center gap-1.5">
+                        <div
+                          className={[
+                            "h-1.5 w-1.5 rounded-full",
+                            overallLoad === "critical"
+                              ? "bg-rose-400 shadow-[0_0_16px_rgba(248,113,113,0.9)]"
+                              : overallLoad === "elevated"
+                              ? "bg-amber-300 shadow-[0_0_14px_rgba(252,211,77,0.8)]"
+                              : "bg-emerald-400 shadow-[0_0_14px_rgba(52,211,153,0.9)]",
+                          ].join(" ")}
+                        />
+                        <span className="uppercase tracking-[0.15em]">
+                          {overallLoad === "critical"
+                            ? "Network load: critical"
+                            : overallLoad === "elevated"
+                            ? "Network load: elevated"
+                            : "Network load: calm"}
+                        </span>
+                </div>
+                      <div className="flex items-center gap-3">
+                        <span className="text-slate-400">
+                          {filteredPatients.length} entities in current view
+                        </span>
+                      </div>
+                    </div>
+                  </div>
+                </LayoutGroup>
               </div>
-            )}
+
+              {/* Right: Intelligence panel */}
+              <div className="w-full lg:w-[360px] xl:w-[400px] flex flex-col">
+                <div className="relative flex-1">
+                  <div className="h-full flex flex-col rounded-3xl border border-border/80 bg-card/95 dark:bg-slate-950/85 backdrop-blur-2xl shadow-[0_30px_80px_rgba(15,23,42,0.12)] dark:shadow-[0_30px_80px_rgba(0,0,0,0.9)] p-6 md:p-7">
+                    <div className="flex items-center justify-between gap-4 mb-6">
+                      <div className="space-y-1.5">
+                        <div className="inline-flex items-center gap-1.5 rounded-full border border-emerald-400/40 bg-emerald-400/10 px-3 py-1">
+                          <Sparkles className="h-3.5 w-3.5 text-emerald-400" />
+                          <span className="text-xs font-semibold tracking-wide text-emerald-700 dark:text-emerald-50">
+                            AI Intelligence
+                          </span>
+                        </div>
+                        <h2 className="text-lg font-semibold text-slate-900 dark:text-slate-50 tracking-tight">
+                          Why this patient matters
+                        </h2>
+                      </div>
+                      {focusedPatient && (
+                        <Badge
+                          variant="outline"
+                          className="border-border/80 bg-muted/70 dark:bg-slate-900/60 text-[11px] font-bold uppercase tracking-widest px-3 py-1.5"
+                        >
+                          {getRiskBand(focusedPatient.riskScore) === "high"
+                            ? "High Risk"
+                            : getRiskBand(focusedPatient.riskScore) === "medium"
+                            ? "Moderate"
+                            : "Low Risk"}
+                        </Badge>
+                      )}
+                    </div>
+
+                    {focusedPatient ? (
+                      <div className="flex-1 flex flex-col space-y-6">
+                        <div className="space-y-2">
+                          <p className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-50 tracking-tight">
+                            {focusedPatient.name}
+                          </p>
+                          <p className="text-sm text-slate-500 dark:text-slate-400 font-medium">
+                            {[
+                              focusedPatient.cancerType,
+                              focusedPatient.cancerSubtype,
+                            ]
+                              .filter(Boolean)
+                              .join(" · ")}
+                          </p>
+                        </div>
+
+                        <div className="space-y-3">
+                          <p className="text-sm/relaxed text-slate-700 dark:text-slate-300">
+                            {buildExplanation(focusedPatient)}
+                          </p>
+                          
+                          {/* Visual Risk Gauge */}
+                          <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                             <div 
+                               className={`h-full rounded-full ${
+                                 getRiskBand(focusedPatient.riskScore) === "high" ? "bg-rose-500" : 
+                                 getRiskBand(focusedPatient.riskScore) === "medium" ? "bg-amber-400" : "bg-emerald-400"
+                               }`}
+                               style={{ width: `${Math.max(focusedPatient.riskScore, 10)}%` }}
+                             />
+                          </div>
+                          <div className="flex justify-between text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+                            <span>Clinical Stability</span>
+                            <span>Composite Risk: {Math.round(focusedPatient.riskScore)}/100</span>
+                          </div>
+                        </div>
+
+                        <div className="grid grid-cols-1 gap-3 py-2">
+                          <div className="rounded-2xl border border-border/60 bg-slate-50/50 dark:bg-slate-900/40 px-4 py-3">
+                            <p className="text-[11px] uppercase tracking-widest text-muted-foreground mb-1.5 font-semibold">
+                              Temporal Analysis
+                            </p>
+                            <p className="text-sm font-medium text-foreground/90">
+                              {focusedPatient.diagnosisDate
+                                ? "Trajectory tracked since " +
+                                  new Date(
+                                    focusedPatient.diagnosisDate
+                                  ).toLocaleDateString()
+                                : "Oncology timeline inferred from record"}
+                            </p>
+                          </div>
+                          <div className="rounded-2xl border border-border/60 bg-slate-50/50 dark:bg-slate-900/40 px-4 py-3">
+                            <p className="text-[11px] uppercase tracking-widest text-muted-foreground mb-1.5 font-semibold">
+                              Intervention Status
+                            </p>
+                            <p className="text-sm font-medium text-foreground/90 flex items-center gap-2">
+                              <Activity className="h-4 w-4 text-emerald-500" />
+                              {getStatusTone(focusedPatient.status) === "active"
+                                ? "Active intervention, under tight watch"
+                                : getStatusTone(focusedPatient.status) ===
+                                  "watch"
+                                ? "Structured surveillance, adaptive thresholds"
+                                : "Stable configuration, low variance trend"}
+                            </p>
+                          </div>
+                        </div>
+
+                        <div className="pt-4 flex flex-col gap-3 mt-auto">
+                          <Button
+                            size="lg"
+                            className="w-full justify-center rounded-2xl bg-gradient-to-r from-emerald-600 to-violet-600 text-sm font-semibold text-white shadow-lg shadow-emerald-500/20 hover:shadow-emerald-500/40 hover:-translate-y-0.5 transition-all duration-300"
+                            onClick={() =>
+                              navigate(`/patients/${focusedPatient.id}`)
+                            }
+                          >
+                            Open Full Patient Workspace
+                          </Button>
+                          <p className="text-xs text-center text-muted-foreground px-4">
+                            Access detailed timelines, treatment protocols, and genetic profiling in the deep view.
+                          </p>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="text-[11px] text-muted-foreground space-y-2">
+                        <p>
+                          Hover any entity in the field to reveal why the AI has
+                          positioned it there. Click to lock focus and step into
+                          a richer clinical explanation.
+                        </p>
+                        <p className="text-muted-foreground">
+                          The system continuously recomputes risk, confidence,
+                          and treatment state to keep this view aligned with
+                          what matters now.
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Hover explanation overlays just the intelligence card */}
+                  <AnimatePresence>
+                    {hoveredPatient && (
+                      <motion.div
+                        key={hoveredPatient.id}
+                        initial={{ opacity: 0, scale: 0.98 }}
+                        animate={{ opacity: 1, scale: 1 }}
+                        exit={{ opacity: 0, scale: 0.98 }}
+                        transition={{ duration: 0.2, ease: "easeOut" }}
+                        className="absolute inset-0 rounded-3xl border border-border/80 bg-card/95 dark:bg-slate-950/95 backdrop-blur-2xl p-6 md:p-7 flex flex-col shadow-[0_24px_60px_rgba(0,0,0,0.25)] dark:shadow-[0_24px_60px_rgba(0,0,0,0.95)] z-20"
+                      >
+                         <div className="flex items-center justify-between gap-4 mb-6">
+                            <div className="space-y-1.5 flex-1 min-w-0">
+                              <div className="inline-flex items-center gap-1.5 rounded-full border border-violet-400/40 bg-violet-400/10 px-3 py-1">
+                                <Sparkles className="h-3.5 w-3.5 text-violet-400" />
+                                <span className="text-xs font-semibold tracking-wide text-violet-700 dark:text-violet-50">
+                                  Hover Insight
+                                </span>
+                              </div>
+                            </div>
+                            <Badge
+                              variant="outline"
+                              className="border-border/80 bg-muted/70 dark:bg-slate-900/60 text-[11px] font-bold uppercase tracking-widest px-3 py-1.5 shrink-0"
+                            >
+                              {getRiskBand(hoveredPatient.riskScore) === "high"
+                                ? "High Risk"
+                                : getRiskBand(hoveredPatient.riskScore) === "medium"
+                                ? "Moderate"
+                                : "Low Risk"}
+                            </Badge>
+                          </div>
+
+                          <div className="flex-1 flex flex-col space-y-6">
+                            <div className="space-y-2">
+                              <p className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-50 tracking-tight truncate">
+                                {hoveredPatient.name}
+                              </p>
+                              <p className="text-sm text-slate-500 dark:text-slate-400 font-medium truncate">
+                                {[
+                                  hoveredPatient.cancerType,
+                                  hoveredPatient.cancerSubtype,
+                                ]
+                                  .filter(Boolean)
+                                  .join(" · ")}
+                              </p>
+                            </div>
+
+                            <div className="space-y-3">
+                              <p className="text-sm/relaxed text-slate-700 dark:text-slate-300">
+                                {buildExplanation(hoveredPatient)}
+                              </p>
+                              
+                              <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
+                                 <div 
+                                   className={`h-full rounded-full ${
+                                     getRiskBand(hoveredPatient.riskScore) === "high" ? "bg-rose-500" : 
+                                     getRiskBand(hoveredPatient.riskScore) === "medium" ? "bg-amber-400" : "bg-emerald-400"
+                                   }`}
+                                   style={{ width: `${Math.max(hoveredPatient.riskScore, 10)}%` }}
+                                 />
+                              </div>
+                              <div className="flex justify-between text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
+                                <span>Projected Impact</span>
+                                <span>Risk: {Math.round(hoveredPatient.riskScore)}/100</span>
+                              </div>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-3 py-2">
+                              <div className="rounded-2xl border border-border/60 bg-slate-50/50 dark:bg-slate-900/40 px-4 py-3">
+                                <p className="text-[11px] uppercase tracking-widest text-muted-foreground mb-1.5 font-semibold">
+                                  Current Status
+                                </p>
+                                <p className="text-sm font-medium text-foreground/90 flex items-center gap-2">
+                                  <Activity className="h-4 w-4 text-violet-500" />
+                                  {getStatusTone(hoveredPatient.status) === "active"
+                                    ? "Active intervention required"
+                                    : "Stable monitoring"}
+                                </p>
+                              </div>
+                            </div>
+
+                            <div className="mt-auto pt-4 text-center">
+                              <p className="text-xs font-medium text-violet-600 dark:text-violet-300 animate-pulse">
+                                Click to lock focus and open workspace
+                              </p>
+                            </div>
+                          </div>
+                      </motion.div>
+                    )}
+                  </AnimatePresence>
+                </div>
+              </div>
+            </div>
           </div>
         </section>
       </main>
