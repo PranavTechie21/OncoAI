@@ -28,8 +28,16 @@ export function TopPatients({ patients }: { patients: any[] }) {
           <Link key={idx} to={`/patients/${patient.id}`} className="block">
             <div className="group flex items-center justify-between rounded-xl border border-slate-100 dark:border-white/5 bg-slate-50/50 dark:bg-white/5 p-4 hover:bg-slate-100 dark:hover:bg-white/10 transition-all hover:scale-[1.02]">
               <div className="flex items-center gap-4">
-                <div className="h-12 w-12 rounded-full bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center text-sm font-bold text-slate-700 dark:text-white uppercase">
-                  {patient.name.charAt(0)}
+                <div className="h-12 w-12 rounded-full overflow-hidden bg-gradient-to-br from-slate-100 to-slate-200 dark:from-slate-700 dark:to-slate-800 flex items-center justify-center text-sm font-bold text-slate-700 dark:text-white uppercase border-2 border-white/10 shadow-sm">
+                  {patient.avatar_url || patient.avatarUrl ? (
+                    <img 
+                      src={patient.avatar_url || patient.avatarUrl} 
+                      alt={patient.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    patient.name.charAt(0)
+                  )}
                 </div>
                 <div>
                   <p className="font-semibold text-lg text-slate-700 dark:text-slate-200 group-hover:text-primary dark:group-hover:text-white transition-colors">{patient.name}</p>
