@@ -24,7 +24,9 @@ import {
   Download,
   Edit,
   Brain,
-  Sparkles
+  Sparkles,
+  Camera,
+  Upload
 } from "lucide-react";
 import { AIRecommendationsPanel } from "@/components/AIRecommendationsPanel";
 import { OutcomeTrackingTab } from "@/components/OutcomeTrackingTab";
@@ -209,6 +211,40 @@ export default function PatientDetail() {
     }
   };
 
+  const handlePhotoUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate size (e.g. 2MB)
+    if (file.size > 2 * 1024 * 1024) {
+      toast.error("Image too large. Please select an image under 2MB.");
+      return;
+    }
+
+    const reader = new FileReader();
+    reader.onloadend = async () => {
+      const base64String = reader.result as string;
+      try {
+        setSaving(true);
+        const pid = Number(id);
+        const api = (await import("@/services/api")).apiService;
+        
+        const resp = await api.updatePatient(pid, { avatar_url: base64String });
+        const updated = resp?.patient || resp?.data || resp;
+        
+        if (updated) {
+          setPatientData(updated);
+          toast.success("Patient photo updated successfully");
+        }
+      } catch (err: any) {
+        toast.error("Failed to upload photo");
+      } finally {
+        setSaving(false);
+      }
+    };
+    reader.readAsDataURL(file);
+  };
+
   if (loading) {
     return (
       <div className="min-h-screen flex flex-col bg-gradient-to-b from-background via-background to-muted/20">
@@ -250,13 +286,39 @@ export default function PatientDetail() {
             </Link>
             
             <div className="flex flex-col md:flex-row items-start md:items-center gap-6">
-              <div className="relative">
-                <img 
-                  src={patientData?.avatarUrl || ''} 
-                  alt={patientData?.name || 'Patient'}
-                  className="w-24 h-24 rounded-full object-cover border-4 border-card shadow-lg"
-                />
-                <div className={`absolute -bottom-1 -right-1 h-6 w-6 rounded-full ${riskLevel.bgClass} border-2 border-card`} />
+              <div className="relative group">
+                <div className="w-24 h-24 rounded-full overflow-hidden border-4 border-card shadow-lg relative bg-muted flex items-center justify-center">
+                  {patientData?.avatar_url || patientData?.avatarUrl ? (
+                    <img 
+                      src={patientData?.avatar_url || patientData?.avatarUrl} 
+                      alt={patientData?.name || 'Patient'}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <User className="w-12 h-12 text-muted-foreground" />
+                  )}
+                  
+                  {/* Upload Overlay */}
+                  <label 
+                    htmlFor="photo-upload" 
+                    className="absolute inset-0 bg-black/40 flex flex-col items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer"
+                  >
+                    <Camera className="h-6 w-6 text-white mb-1" />
+                    <span className="text-[10px] text-white font-bold uppercase tracking-tighter">Upload</span>
+                    <input 
+                      id="photo-upload" 
+                      type="file" 
+                      accept="image/*" 
+                      className="hidden" 
+                      onChange={handlePhotoUpload}
+                      disabled={saving}
+                    />
+                  </label>
+                </div>
+                {/* Status Indicator (replacing the green icon with a sharper status ring) */}
+                <div className={`absolute -bottom-1 -right-1 h-6 w-6 rounded-full ${riskLevel.bgClass} border-2 border-card flex items-center justify-center`}>
+                   <div className="h-2 w-2 rounded-full bg-white opacity-40 animate-pulse" />
+                </div>
               </div>
               
               <div className="flex-1">
