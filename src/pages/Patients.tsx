@@ -200,17 +200,16 @@ function PatientOrb({
   const riskBand = getRiskBand(patient.riskScore);
   const { x, y } = computePosition(index, total, patient);
   const size = getNodeSize(patient);
-  const { duration } = getPulseProps(patient);
 
-  const statusTone = getStatusTone(patient.status);
-
-  // Advanced glow colors
-  const coreColor = riskBand === "high" ? "#fb7185" : riskBand === "medium" ? "#fbbf24" : "#34d399";
-  const glowShadow = riskBand === "high" 
-    ? "shadow-[0_0_50px_rgba(248,113,113,0.4)]" 
+  // Ultra-clear contrast colors
+  const coreColor = riskBand === "high" ? "#ef4444" : riskBand === "medium" ? "#f59e0b" : "#10b981";
+  
+  // High-fidelity depth shadows to pop from background
+  const boldShadow = riskBand === "high" 
+    ? "shadow-[0_20px_50px_rgba(239,68,68,0.35)]" 
     : riskBand === "medium" 
-    ? "shadow-[0_0_40px_rgba(251,191,36,0.3)]" 
-    : "shadow-[0_0_35px_rgba(52,211,153,0.3)]";
+    ? "shadow-[0_20px_50px_rgba(245,158,11,0.3)]" 
+    : "shadow-[0_20px_50px_rgba(16,185,129,0.3)]";
 
   return (
     <motion.button
@@ -219,65 +218,65 @@ function PatientOrb({
       onMouseEnter={onHover}
       onMouseLeave={onBlur}
       onClick={onSelect}
-      className="absolute -translate-x-1/2 -translate-y-1/2 focus:outline-none z-30"
+      className={`absolute -translate-x-1/2 -translate-y-1/2 focus:outline-none z-[45]`}
       style={{ left: `${x}%`, top: `${y}%` }}
-      whileHover={{ scale: 1.15, zIndex: 50 }}
+      whileHover={{ scale: 1.15, zIndex: 60 }}
       animate={{ 
-        y: [0, -4, 0],
+        y: [0, -8, 0],
         transition: { duration: 4 + Math.random() * 2, repeat: Infinity, ease: "easeInOut" }
       }}
     >
-      <div className={`relative group transition-all duration-500 ${isFocused ? "scale-110" : ""}`}>
-        {/* Holographic Sphere Base */}
+      <div className={`relative group transition-all duration-300 ${isFocused ? "scale-110" : ""}`}>
+        {/* The "Real Ball" - High Fidelity Sphere (Opaque to avoid blending with BG) */}
         <div 
-          className={`relative rounded-full backdrop-blur-md border border-white/30 dark:border-white/10 overflow-hidden flex items-center justify-center ${glowShadow}`}
+          className={`relative rounded-full border-2 border-white dark:border-white/40 flex items-center justify-center ${boldShadow} overflow-hidden bg-white/95 dark:bg-slate-900/95`}
           style={{ 
-            width: size + 12, 
-            height: size + 12,
-            background: `radial-gradient(circle at 30% 30%, rgba(255,255,255,0.4), rgba(255,255,255,0.05))`
+            width: size + 16, 
+            height: size + 16,
+            boxShadow: `inset 0 -8px 20px rgba(0,0,0,0.1), 0 20px 40px rgba(0,0,0,0.3)`
           }}
         >
-          {/* Internal Micro-UI (shimmering lines) */}
-          <div className="absolute inset-0 opacity-20 group-hover:opacity-40 transition-opacity">
-            <div className="absolute top-1/2 left-0 w-full h-[1px] bg-white transform -rotate-45" />
-            <div className="absolute top-1/4 left-0 w-full h-[1px] bg-white transform rotate-12" />
+          {/* Internal Shimmer Layer */}
+          <div className="absolute inset-0 bg-gradient-to-tr from-transparent via-white/40 to-white/10" />
+
+          {/* Glowing Status Core - Sharper & Bolder */}
+          <div 
+            className="w-6 h-6 rounded-full shadow-[0_0_25px_rgba(0,0,0,0.2)] flex items-center justify-center"
+            style={{ backgroundColor: coreColor }}
+          >
+             <div className="w-2.5 h-2.5 rounded-full bg-white opacity-60 blur-[1px]" />
           </div>
 
-          {/* SVG Data Elements */}
-          <svg viewBox="0 0 100 100" className="w-full h-full p-2">
+          {/* SVG Data Elements - High Saturation */}
+          <svg viewBox="0 0 100 100" className="absolute inset-0 w-full h-full p-2.5 opacity-40">
              <motion.circle 
-               cx="50" cy="50" r="40" 
+               cx="50" cy="50" r="42" 
                fill="none" 
                stroke={coreColor} 
-               strokeWidth="1" 
-               strokeDasharray="4 4"
+               strokeWidth="1.5" 
+               strokeDasharray="5 5"
                animate={{ rotate: 360 }}
-               transition={{ duration: 10, repeat: Infinity, ease: "linear" }}
+               transition={{ duration: 12, repeat: Infinity, ease: "linear" }}
              />
-             <motion.circle 
-                cx="50" cy="50" r="30" 
-                fill="none" 
-                stroke={coreColor} 
-                strokeWidth="2" 
-                strokeDasharray={`${patient.riskScore} ${100-patient.riskScore}`}
-                strokeLinecap="round"
-             />
-             <circle cx="50" cy="50" r="8" fill={coreColor} className="shadow-lg" />
           </svg>
 
-          {/* Glint effect */}
-          <div className="absolute top-1 left-2 w-1/2 h-1/2 bg-white/20 rounded-full blur-[2px] pointer-events-none" />
+          {/* Glass Highlight */}
+          <div className="absolute top-1 left-3 w-4 h-2 bg-white rounded-full blur-[2.5px] rotate-[-15deg]" />
         </div>
 
-        {/* Floating Label with Glassmorphism */}
-        <div className={`absolute left-1/2 -bottom-2 -translate-x-1/2 translate-y-full px-3 py-1.5 rounded-xl border border-white/20 bg-slate-900/40 dark:bg-slate-950/60 backdrop-blur-xl transition-all duration-300 pointer-events-none whitespace-nowrap ${isHovered || isFocused ? "opacity-100 scale-100" : "opacity-0 scale-90"}`}>
-           <div className="flex flex-col items-center gap-0.5">
-              <span className="text-[11px] font-bold text-white tracking-wide">{patient.name}</span>
+        {/* High-Contrast Label - Bold & Clear */}
+        <div className={`absolute left-1/2 -bottom-4 -translate-x-1/2 translate-y-full px-5 py-2.5 rounded-2xl border-2 border-slate-900 bg-slate-950 text-white shadow-2xl transition-all duration-300 pointer-events-none whitespace-nowrap z-[100] ${isHovered || isFocused ? "opacity-100 scale-100" : "opacity-0 scale-90 translate-y-[-10px]"}`}>
+           <div className="flex flex-col items-center gap-1">
+              <span className="text-[13px] font-black uppercase tracking-tighter text-white">{patient.name}</span>
               <div className="flex items-center gap-2">
-                 <span className="text-[9px] uppercase font-bold text-emerald-400">{patient.cancerType || "Systemic"}</span>
-                 <span className="text-[9px] text-white/50">ID: {String(patient.id).slice(0,4)}</span>
+                 <span className="text-[10px] font-bold bg-white/10 px-2 py-0.5 rounded text-emerald-400 border border-emerald-400/30">
+                   {patient.cancerType || "Oncology"}
+                 </span>
+                 <span className="text-[10px] font-black text-white/50">{Math.round(patient.riskScore)}% RISK</span>
               </div>
            </div>
+           {/* Sharp pointer */}
+           <div className="absolute -top-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-slate-950 border-l-2 border-t-2 border-slate-900 rotate-45" />
         </div>
       </div>
     </motion.button>
@@ -535,11 +534,19 @@ export default function Patients() {
 
                 {/* Intelligence field */}
                 <LayoutGroup>
-                  <div className="relative mt-2 h-[520px] md:h-[580px] rounded-[2rem] border border-slate-200 bg-gradient-to-b from-white via-slate-50 to-slate-100 dark:from-slate-950/70 dark:via-slate-950/90 dark:to-slate-950/80 overflow-hidden shadow-[0_30px_90px_rgba(15,23,42,0.12)] dark:shadow-[0_40px_120px_rgba(0,0,0,0.85)]">
-                    {/* Multi-layer depth grid */}
-                    <div className="absolute inset-0 opacity-50 dark:opacity-40">
-                      <div className="absolute inset-8 rounded-[1.8rem] bg-[radial-gradient(circle_at_20%_0%,rgba(52,211,153,0.12),transparent_55%),radial-gradient(circle_at_80%_120%,rgba(129,140,248,0.16),transparent_60%)]" />
-                      <div className="absolute inset-6 rounded-[1.7rem] border border-slate-200/60 dark:border-border/20" />
+                  <div className="relative mt-2 h-[520px] md:h-[580px] rounded-[2rem] border-2 border-slate-300 dark:border-slate-800 bg-white dark:bg-slate-950 overflow-hidden shadow-[0_40px_100px_rgba(0,0,0,0.15)] dark:shadow-[0_40px_120px_rgba(0,0,0,0.85)]">
+                    {/* High-Fidelity Background Layer - Deep Blur (Bokeh Effect) */}
+                    <div 
+                      className="absolute inset-0 bg-cover bg-center bg-no-repeat opacity-30 dark:opacity-20 blur-[8px] scale-110"
+                      style={{ backgroundImage: 'url("/assets/oncoai_field_bg.png")' }}
+                    />
+                    
+                    {/* Frosted Fog Layer to separate FG from BG */}
+                    <div className="absolute inset-0 bg-white/40 dark:bg-slate-900/60 backdrop-blur-[6px]" />
+
+                    {/* Multi-layer clinical grid */}
+                    <div className="absolute inset-0 opacity-20 dark:opacity-10 pointer-events-none">
+                      <div className="absolute inset-0 bg-[linear-gradient(to_right,rgba(0,0,0,0.1)_1px,transparent_1px),linear-gradient(to_bottom,rgba(0,0,0,0.1)_1px,transparent_1px)] bg-[size:40px_40px]" />
                     </div>
 
                     {/* SVG Connection Layer - Real-time Data Threads */}
@@ -854,58 +861,63 @@ export default function Patients() {
                             </Badge>
                           </div>
 
-                          <div className="flex-1 flex flex-col space-y-6">
-                            <div className="space-y-2">
-                              <p className="text-2xl md:text-3xl font-bold text-slate-900 dark:text-slate-50 tracking-tight truncate">
+                          <div className="flex-1 flex flex-col items-center justify-center space-y-8 text-center">
+                            {/* Massive Risk Focal Point */}
+                            <motion.div 
+                              initial={{ scale: 0.9 }}
+                              animate={{ scale: 1 }}
+                              className="relative"
+                            >
+                              <div className="text-7xl md:text-8xl font-black text-slate-900 dark:text-slate-50 tracking-tighter">
+                                {Math.round(hoveredPatient.riskScore)}%
+                              </div>
+                              <div className="text-[11px] uppercase font-bold tracking-[0.3em] text-muted-foreground -mt-2">
+                                AI Risk Index
+                              </div>
+                              <motion.div 
+                                className={`absolute -inset-4 rounded-full blur-2xl opacity-20 dark:opacity-40 -z-10 ${
+                                  getRiskBand(hoveredPatient.riskScore) === 'high' ? 'bg-rose-500' : 'bg-emerald-500'
+                                }`}
+                                animate={{ scale: [1, 1.2, 1] }}
+                                transition={{ duration: 2, repeat: Infinity }}
+                              />
+                            </motion.div>
+
+                            <div className="space-y-4 w-full">
+                              <h3 className="text-3xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
                                 {hoveredPatient.name}
-                              </p>
-                              <p className="text-sm text-slate-500 dark:text-slate-400 font-medium truncate">
-                                {[
-                                  hoveredPatient.cancerType,
-                                  hoveredPatient.cancerSubtype,
-                                ]
-                                  .filter(Boolean)
-                                  .join(" · ")}
-                              </p>
-                            </div>
-
-                            <div className="space-y-3">
-                              <p className="text-sm/relaxed text-slate-700 dark:text-slate-300">
-                                {buildExplanation(hoveredPatient)}
-                              </p>
+                              </h3>
                               
-                              <div className="mt-2 h-1.5 w-full rounded-full bg-slate-100 dark:bg-slate-800 overflow-hidden">
-                                 <div 
-                                   className={`h-full rounded-full ${
-                                     getRiskBand(hoveredPatient.riskScore) === "high" ? "bg-rose-500" : 
-                                     getRiskBand(hoveredPatient.riskScore) === "medium" ? "bg-amber-400" : "bg-emerald-400"
-                                   }`}
-                                   style={{ width: `${Math.max(hoveredPatient.riskScore, 10)}%` }}
-                                 />
+                              <div className="flex flex-wrap justify-center gap-2">
+                                 <Badge className="bg-slate-900 text-white dark:bg-white dark:text-slate-950 px-3 py-1 text-[10px] uppercase font-bold">
+                                   {hoveredPatient.cancerType || 'Oncology'}
+                                 </Badge>
+                                 <Badge variant="outline" className="border-emerald-500/50 text-emerald-600 dark:text-emerald-400 px-3 py-1 text-[10px] uppercase font-bold">
+                                   Signal: {getStatusTone(hoveredPatient.status).toUpperCase()}
+                                 </Badge>
                               </div>
-                              <div className="flex justify-between text-[10px] uppercase font-bold text-muted-foreground tracking-wider">
-                                <span>Projected Impact</span>
-                                <span>Risk: {Math.round(hoveredPatient.riskScore)}/100</span>
+
+                              <div className="pt-6 space-y-4 border-t border-slate-100 dark:border-white/5 w-full">
+                                 <p className="text-xs uppercase font-bold text-muted-foreground tracking-widest">Top AI Concerns</p>
+                                 <div className="grid grid-cols-1 gap-2">
+                                    <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-white/5">
+                                       <div className="h-2 w-2 rounded-full bg-rose-500 shadow-[0_0_10px_rgba(244,63,94,0.5)]" />
+                                       <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Potential Pathological Shift</span>
+                                    </div>
+                                    <div className="flex items-center gap-3 px-4 py-3 rounded-2xl bg-slate-50 dark:bg-slate-900/50 border border-slate-100 dark:border-white/5">
+                                       <div className="h-2 w-2 rounded-full bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.5)]" />
+                                       <span className="text-sm font-semibold text-slate-700 dark:text-slate-300">Metric Stability Confidence: 94%</span>
+                                    </div>
+                                 </div>
                               </div>
                             </div>
 
-                            <div className="grid grid-cols-1 gap-3 py-2">
-                              <div className="rounded-2xl border border-border/60 bg-slate-50/50 dark:bg-slate-900/40 px-4 py-3">
-                                <p className="text-[11px] uppercase tracking-widest text-muted-foreground mb-1.5 font-semibold">
-                                  Current Status
-                                </p>
-                                <p className="text-sm font-medium text-foreground/90 flex items-center gap-2">
-                                  <Activity className="h-4 w-4 text-violet-500" />
-                                  {getStatusTone(hoveredPatient.status) === "active"
-                                    ? "Active intervention required"
-                                    : "Stable monitoring"}
-                                </p>
+                            <div className="mt-auto pt-8 flex flex-col items-center gap-4">
+                              <div className="px-6 py-2 rounded-full bg-violet-600 text-white text-[11px] font-bold uppercase tracking-widest shadow-xl shadow-violet-500/20 animate-bounce">
+                                Unlock Forensic Evidence
                               </div>
-                            </div>
-
-                            <div className="mt-auto pt-4 text-center">
-                              <p className="text-xs font-medium text-violet-600 dark:text-violet-300 animate-pulse">
-                                Click to lock focus and open workspace
+                              <p className="text-[10px] text-muted-foreground font-medium max-w-[180px]">
+                                Click to access temporal mapping & spatial pathology analysis
                               </p>
                             </div>
                           </div>
