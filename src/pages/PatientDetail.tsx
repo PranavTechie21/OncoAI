@@ -28,8 +28,13 @@ import {
 } from "lucide-react";
 import { AIRecommendationsPanel } from "@/components/AIRecommendationsPanel";
 import { OutcomeTrackingTab } from "@/components/OutcomeTrackingTab";
-import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
 import { LineChart, Line, BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, ResponsiveContainer } from "recharts";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { toast } from "sonner";
 
 // Patient detail loads data from backend; no local mock fallbacks
 
@@ -43,6 +48,23 @@ export default function PatientDetail() {
   const [upcomingAppointments, setUpcomingAppointments] = useState<any[]>([]);
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  
+  // Edit logic
+  const [showEditDialog, setShowEditDialog] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [editForm, setEditForm] = useState({
+    name: "",
+    age: "",
+    gender: "",
+    email: "",
+    phone: "",
+    address: "",
+    cancer_type: "",
+    cancer_subtype: "",
+    stage: "",
+    status: "",
+    diagnosis_date: "",
+  });
 
   const getRiskLevel = (score: number) => {
     if (score <= 50) return { label: "Low", color: "success", bgClass: "bg-success", textClass: "text-success", borderClass: "border-success/20", bgLightClass: "bg-success/10" };
@@ -105,6 +127,21 @@ export default function PatientDetail() {
         rHist.sort((a, b) => a.date.localeCompare(b.date));
         setRiskHistory(rHist);
 
+        // Prep edit form
+        setEditForm({
+          name: patient.name || "",
+          age: String(patient.age || ""),
+          gender: patient.gender || "",
+          email: patient.email || "",
+          phone: patient.phone || "",
+          address: patient.address || "",
+          cancer_type: patient.cancer_type || patient.cancerType || "",
+          cancer_subtype: patient.cancer_subtype || patient.cancerSubtype || "",
+          stage: patient.stage || "",
+          status: patient.status || "",
+          diagnosis_date: patient.diagnosis_date || patient.diagnosisDate || "",
+        });
+
         // Treatment history: try to get from patient.treatment_protocol
         if (patient.treatment_protocol) {
           try {
@@ -145,6 +182,32 @@ export default function PatientDetail() {
     }
     load();
   }, [id]);
+
+  const handleSavePatient = async () => {
+    try {
+      setSaving(true);
+      const pid = Number(id);
+      const api = (await import("@/services/api")).apiService;
+      
+      const updateData = {
+        ...editForm,
+        age: parseInt(editForm.age) || 0,
+      };
+
+      const resp = await api.updatePatient(pid, updateData);
+      const updated = resp?.patient || resp?.data || resp;
+      
+      if (updated) {
+        setPatientData(updated);
+        setShowEditDialog(false);
+        toast.success("Patient information updated successfully");
+      }
+    } catch (err: any) {
+      toast.error(err?.message || "Failed to update patient");
+    } finally {
+      setSaving(false);
+    }
+  };
 
   if (loading) {
     return (
@@ -227,7 +290,7 @@ export default function PatientDetail() {
                   <Brain className="h-4 w-4" />
                   AI Recommendations
                 </Button>
-                <Button variant="outline" className="gap-2">
+                <Button variant="outline" className="gap-2" onClick={() => setShowEditDialog(true)}>
                   <Edit className="h-4 w-4" />
                   Edit
                 </Button>
@@ -492,6 +555,132 @@ export default function PatientDetail() {
             patientData={patientData}
             onClose={() => setShowAIRecommendations(false)}
           />
+        </DialogContent>
+      </Dialog>
+
+      {/* Edit Patient Dialog */}
+      <Dialog open={showEditDialog} onOpenChange={setShowEditDialog}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5 text-primary" />
+              Edit Patient Information
+            </DialogTitle>
+          </DialogHeader>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="name">Full Name</Label>
+              <Input 
+                id="name" 
+                value={editForm.name} 
+                onChange={(e) => setEditForm({...editForm, name: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="age">Age</Label>
+              <Input 
+                id="age" 
+                type="number" 
+                value={editForm.age} 
+                onChange={(e) => setEditForm({...editForm, age: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="gender">Gender</Label>
+              <Select value={editForm.gender} onValueChange={(val) => setEditForm({...editForm, gender: val})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select gender" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Male">Male</SelectItem>
+                  <SelectItem value="Female">Female</SelectItem>
+                  <SelectItem value="Other">Other</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="status">Status</Label>
+              <Select value={editForm.status} onValueChange={(val) => setEditForm({...editForm, status: val})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select status" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Active">Active</SelectItem>
+                  <SelectItem value="Stable">Stable</SelectItem>
+                  <SelectItem value="Remission">Remission</SelectItem>
+                  <SelectItem value="Critical">Critical</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="cancer_type">Cancer Type</Label>
+              <Input 
+                id="cancer_type" 
+                value={editForm.cancer_type} 
+                onChange={(e) => setEditForm({...editForm, cancer_type: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="stage">Clinical Stage</Label>
+              <Select value={editForm.stage} onValueChange={(val) => setEditForm({...editForm, stage: val})}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select stage" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Stage I">Stage I</SelectItem>
+                  <SelectItem value="Stage II">Stage II</SelectItem>
+                  <SelectItem value="Stage III">Stage III</SelectItem>
+                  <SelectItem value="Stage IV">Stage IV</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="email">Email Address</Label>
+              <Input 
+                id="email" 
+                type="email" 
+                value={editForm.email} 
+                onChange={(e) => setEditForm({...editForm, email: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="phone">Phone Number</Label>
+              <Input 
+                id="phone" 
+                value={editForm.phone} 
+                onChange={(e) => setEditForm({...editForm, phone: e.target.value})}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="diagnosis_date">Diagnosis Date</Label>
+              <Input 
+                id="diagnosis_date" 
+                type="date"
+                value={editForm.diagnosis_date} 
+                onChange={(e) => setEditForm({...editForm, diagnosis_date: e.target.value})}
+              />
+            </div>
+            <div className="col-span-full space-y-2">
+              <Label htmlFor="address">Residential Address</Label>
+              <Textarea 
+                id="address" 
+                value={editForm.address} 
+                onChange={(e) => setEditForm({...editForm, address: e.target.value})}
+              />
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowEditDialog(false)}>Cancel</Button>
+            <Button 
+              className="bg-primary hover:bg-primary/90" 
+              onClick={handleSavePatient}
+              disabled={saving}
+            >
+              {saving ? "Saving..." : "Save Changes"}
+            </Button>
+          </DialogFooter>
         </DialogContent>
       </Dialog>
     </div>
