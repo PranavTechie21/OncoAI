@@ -35,8 +35,14 @@ class ApiService {
       });
 
       if (!response.ok) {
-        const error = await response.json().catch(() => ({ 
-          message: `HTTP error! status: ${response.status}` 
+        if (response.status === 401) {
+          localStorage.removeItem('oncoai_token');
+          localStorage.removeItem('oncoai_user');
+          window.dispatchEvent(new Event('auth:logout'));
+        }
+
+        const error = await response.json().catch(() => ({
+          message: `HTTP error! status: ${response.status}`
         }));
         throw new Error(error.message || `HTTP error! status: ${response.status}`);
       }
@@ -152,8 +158,16 @@ class ApiService {
   }
 
   // Dashboard summary
-  async getDashboardSummary() {
-    const response = await this.request<any>('/dashboard/summary');
+  async getDashboardSummary(range?: string, startDate?: string, endDate?: string) {
+    const params = new URLSearchParams();
+    if (range) params.append('range', range);
+    if (startDate) params.append('startDate', startDate);
+    if (endDate) params.append('endDate', endDate);
+
+    const queryString = params.toString();
+    const url = `/dashboard/summary${queryString ? `?${queryString}` : ''}`;
+
+    const response = await this.request<any>(url);
     // Backend returns data directly, not wrapped in ApiResponse format
     return response;
   }
