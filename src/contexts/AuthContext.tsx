@@ -96,15 +96,6 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     localStorage.removeItem("oncoai_token");
   };
 
-  useEffect(() => {
-    const handleLogout = () => {
-      logout();
-    };
-
-    window.addEventListener('auth:logout', handleLogout);
-    return () => window.removeEventListener('auth:logout', handleLogout);
-  }, []);
-
   return (
     <AuthContext.Provider value={{ user, login, logout, isAuthenticated: !!user, loading }}>
       {children}

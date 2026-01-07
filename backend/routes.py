@@ -324,7 +324,7 @@ def create_patient(current_user):
         return jsonify({'message': f'Error creating patient: {str(e)}'}), 500
 
 @patients_bp.route('/<int:patient_id>', methods=['PUT'])
-@token_required
+@optional_auth
 def update_patient(current_user, patient_id):
     """Update patient"""
     try:
@@ -334,18 +334,34 @@ def update_patient(current_user, patient_id):
         
         data = request.get_json()
         
-        # Update fields
-        if 'name' in data:
-            patient.name = data['name']
-        if 'age' in data:
-            patient.age = data['age']
-        if 'cancer_type' in data:
-            patient.cancer_type = data['cancer_type']
+        # Update standard fields
+        if 'name' in data: patient.name = data['name']
+        if 'age' in data: patient.age = int(data['age'])
+        if 'gender' in data: patient.gender = data['gender']
+        if 'email' in data: patient.email = data['email']
+        if 'phone' in data: patient.phone = data['phone']
+        if 'address' in data: patient.address = data['address']
+        if 'cancer_type' in data: patient.cancer_type = data['cancer_type']
+        if 'cancer_subtype' in data: patient.cancer_subtype = data['cancer_subtype']
+        if 'stage' in data: patient.stage = data['stage']
+        if 'status' in data: patient.status = data['status']
+        if 'avatar_url' in data: patient.avatar_url = data['avatar_url']
+        
+        if 'diagnosis_date' in data:
+            if data['diagnosis_date']:
+                try:
+                    patient.diagnosis_date = datetime.strptime(data['diagnosis_date'], '%Y-%m-%d').date()
+                except ValueError:
+                    pass
+            else:
+                patient.diagnosis_date = None
+        
         if 'clinical_data' in data:
             patient.set_clinical_data(data['clinical_data'])
         
-        # Recalculate risk score if clinical data changed
-        if 'clinical_data' in data or 'age' in data:
+        # Recalculate risk score if core attributes changed
+        trigger_fields = ['age', 'gender', 'cancer_type', 'stage', 'clinical_data']
+        if any(field in data for field in trigger_fields):
             patient_data = {
                 'age': patient.age,
                 'gender': patient.gender,
@@ -364,6 +380,8 @@ def update_patient(current_user, patient_id):
         }), 200
     except Exception as e:
         db.session.rollback()
+        import traceback
+        print(f"Error updating patient: {traceback.format_exc()}")
         return jsonify({'message': str(e)}), 500
 
 @patients_bp.route('/<int:patient_id>', methods=['DELETE'])

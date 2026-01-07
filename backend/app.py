@@ -2,7 +2,7 @@ from flask import Flask, request, jsonify
 from flask_cors import CORS
 from flask_sqlalchemy import SQLAlchemy
 from flask_migrate import Migrate
-from datetime import datetime
+from datetime import datetime, timedelta
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.exceptions import Unauthorized
 import os
@@ -115,6 +115,9 @@ class Patient(db.Model):
     gender = db.Column(db.String(10), nullable=False)
     email = db.Column(db.String(120))
     phone = db.Column(db.String(20))
+    address = db.Column(db.String(300))
+    status = db.Column(db.String(50))
+    avatar_url = db.Column(db.Text)
     
     cancer_type = db.Column(db.String(100), nullable=False)
     cancer_subtype = db.Column(db.String(100))
@@ -168,6 +171,9 @@ class Patient(db.Model):
             'gender': self.gender,
             'email': self.email,
             'phone': self.phone,
+            'address': self.address,
+            'status': self.status,
+            'avatar_url': self.avatar_url,
             'cancer_type': self.cancer_type,
             'cancer_subtype': self.cancer_subtype,
             'stage': self.stage,
@@ -454,14 +460,37 @@ def dashboard_summary():
     
     try:
         # Filter all aggregates by current doctor's data
-        from sqlalchemy import func
+        from sqlalchemy import func, and_
         from collections import defaultdict
+        
+        range_type = request.args.get('range', '6months')
+        start_date_str = request.args.get('startDate')
+        end_date_str = request.args.get('endDate')
 
-        print(f"[Dashboard] Fetching data for user: {current_user.email} (ID: {current_user.id})")
+        now = datetime.utcnow()
+        start_date = None
+        
+        if range_type == 'week':
+            start_date = now - timedelta(days=7)
+        elif range_type == 'month':
+            start_date = now - timedelta(days=30)
+        elif range_type == '3months':
+            start_date = now - timedelta(days=90)
+        elif range_type == '6months':
+            start_date = now - timedelta(days=180)
+        elif range_type == 'year':
+            start_date = now - timedelta(days=365)
+        elif range_type == 'custom' and start_date_str:
+            try:
+                start_date = datetime.fromisoformat(start_date_str.replace('Z', '+00:00'))
+            except:
+                start_date = now - timedelta(days=180)
+
+        print(f"[Dashboard] Fetching data for user: {current_user.email} (ID: {current_user.id}) with range: {range_type}")
+        
+        # Totals
         total_patients = Patient.query.filter_by(doctor_id=current_user.id).count()
-        print(f"[Dashboard] Total patients for user {current_user.id}: {total_patients}")
         high_risk_patients = Patient.query.filter_by(doctor_id=current_user.id, risk_level='high').count()
-        print(f"[Dashboard] High risk patients: {high_risk_patients}")
 
         active_treatments = (
             Patient.query.filter(
@@ -477,59 +506,88 @@ def dashboard_summary():
             ).count()
         )
 
-        growth_rows = (
-            db.session.query(
-                func.strftime('%Y-%m', Patient.diagnosis_date).label('ym'),
-                func.count(Patient.id),
-            )
-            .filter(Patient.doctor_id == current_user.id)
-            .group_by('ym')
-            .order_by('ym')
-            .all()
-        )
+        # Determine the timeline for padding
+        timeline = []
+        date_format = '%Y-%m-%d' if range_type in ['week', 'month'] else '%Y-%m'
+        
+        # DetermineGrouping & start_date
+        now = datetime.utcnow()
+        if not start_date:
+            if range_type == 'week': start_date = now - timedelta(days=7)
+            elif range_type == 'month': start_date = now - timedelta(days=30)
+            elif range_type == '3months': start_date = now - timedelta(days=90)
+            elif range_type == '6months': start_date = now - timedelta(days=180)
+            elif range_type == 'year': start_date = now - timedelta(days=365)
+            else: start_date = now - timedelta(days=180) # Default
+            
+        # Select grouping format based on range logic
+        if range_type == 'custom' and start_date_str and end_date_str:
+             try:
+                sd = datetime.fromisoformat(start_date_str.replace('Z', '+00:00'))
+                ed = datetime.fromisoformat(end_date_str.replace('Z', '+00:00'))
+                diff = (ed - sd).days
+                date_format = '%Y-%m-%d' if diff <= 45 else '%Y-%m'
+                start_date = sd
+             except: pass
 
-        growth = []
-        for ym, count in growth_rows:
-            if ym is None:
-                continue
-            month_num = int(ym.split('-')[1])
-            month_name = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][month_num - 1]
-            growth.append({'month': month_name, 'patients': count})
+        # Create the continuous timeline
+        curr = start_date
+        while curr <= now:
+            timeline.append(curr.strftime(date_format))
+            if date_format == '%Y-%m-%d':
+                curr += timedelta(days=1)
+            else:
+                # Move to next month
+                if curr.month == 12:
+                    curr = curr.replace(year=curr.year + 1, month=1)
+                else:
+                    curr = curr.replace(month=curr.month + 1)
+        
+        print(f"[Dashboard] Timeline built with {len(timeline)} points for range {range_type}")
 
-        outcome_rows = (
-            db.session.query(
-                func.strftime('%Y-%m', Report.generated_at).label('ym'),
-                func.count(Report.id),
-            )
-            .filter(Report.doctor_id == current_user.id)
-            .group_by('ym')
-            .order_by('ym')
-            .all()
-        )
+        # Growth Data
+        growth_query = db.session.query(
+            func.strftime(date_format, Patient.diagnosis_date).label('date_label'),
+            func.count(Patient.id),
+        ).filter(Patient.doctor_id == current_user.id, Patient.diagnosis_date >= start_date)
+            
+        growth_rows = growth_query.group_by('date_label').all()
 
-        outcomes = []
-        for ym, count in outcome_rows:
-            if ym is None:
-                continue
-            month_num = int(ym.split('-')[1])
-            month_name = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'][month_num - 1]
-            outcomes.append({'month': month_name, 'outcomes': count})
+        # Outcomes Data
+        outcome_query = db.session.query(
+            func.strftime(date_format, Report.generated_at).label('date_label'),
+            func.count(Report.id),
+        ).filter(Report.doctor_id == current_user.id, Report.generated_at >= start_date)
+            
+        outcome_rows = outcome_query.group_by('date_label').all()
 
-        month_map = defaultdict(lambda: {'month': '', 'patients': 0, 'treatments': 0, 'outcomes': 0})
-        for row in growth:
-            m = row['month']
-            month_map[m]['month'] = m
-            month_map[m]['patients'] = row['patients']
-        for row in outcomes:
-            m = row['month']
-            month_map[m]['month'] = m
-            month_map[m]['outcomes'] = row['outcomes']
-            month_map[m]['treatments'] = max(row['outcomes'], 1)
+        # Build map from existing data
+        data_map = {label: count for label, count in growth_rows if label}
+        outcome_map = {label: count for label, count in outcome_rows if label}
 
-        monthly_stats = sorted(
-            month_map.values(),
-            key=lambda r: ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'].index(r['month'])
-        )
+        # Merge statistics with padded timeline
+        monthly_stats = []
+        for label in timeline:
+            m_stats = {
+                'month': label,
+                'patients': data_map.get(label, 0),
+                'outcomes': outcome_map.get(label, 0),
+                'treatments': outcome_map.get(label, 0) # Use outcomes as proxy for active engagement
+            }
+            
+            # If data is monthly, convert raw YYYY-MM to nice names
+            if date_format == '%Y-%m':
+                try:
+                    m_num = int(label.split('-')[1])
+                    m_name = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'][m_num - 1]
+                    # We append the year if it's over a year or we have multiple years
+                    if range_type in ['year', 'custom']:
+                        m_stats['month'] = f"{m_name} {label.split('-')[0][2:]}"
+                    else:
+                        m_stats['month'] = m_name
+                except: pass
+            
+            monthly_stats.append(m_stats)
 
         top_patients_query = (
             Patient.query
@@ -543,7 +601,8 @@ def dashboard_summary():
             'name': p.name,
             'riskScore': int(p.risk_score or 0),
             'risk_level': p.risk_level,
-            'status': p.risk_level,
+            'status': p.status or p.risk_level,
+            'avatar_url': p.avatar_url,
             'change': 0,
         } for p in top_patients_query]
 
